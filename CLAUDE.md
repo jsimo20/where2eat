@@ -16,6 +16,8 @@ v5 decision (folded into PRD v2.5): matching is fully async. No lobby; host sets
 
 v6 decision (folded into PRD v2.6): availability is three verified states: Closed (posted schedule, daily refresh), Open walk-in-or-call, Open reservations-available (live partner seat check, fresh within 30 min). No pattern guesses, no stale claims, no manual entry, no feedback signals, no availability-based ranking or swaps.
 
+v7 decisions (folded into PRD v2.7): team = James + Claude Code; light-first palette; photos via Places/Yelp photo APIs with attribution (Google Images ruled out); signup = Google or email+password collecting full name + phone (phone unused, flagged); alpha feedback overlay files GitHub issues (S53). Draft content in docs/content/ (third-way matrix, voice guides, quiz copy, venue template, UNVERIFIED candidate venue list).
+
 ## Key files
 
 - `W2E_PRD_Hartford_Prototype.md`: the PRD (v2.3; version history in the doc header and git). Requirements source of truth. Stable filename on purpose: version bumps no longer rename the file.
@@ -43,6 +45,10 @@ Scenario IDs (S-numbers) and decision IDs (D-numbers) are the shared vocabulary;
 - Explore map (D10) is a projection of the deck, not a second engine: pins show exactly the current candidate pool (vetoes + filters respected), and map actions are normal swipes.
 - Every gesture has a visible button twin; TalkBack pass gates each release (S35).
 - Deferred: multi-act itineraries, map layers beyond pins (routes, heatmaps, weather overlay), event APIs, push notifications (top fast-follow for matching), group chat (never in prototype), friend search (link-only adds), booking-completion tracking, iOS, Play Store, public web client.
+
+## Alpha feedback loop
+
+The app's alpha overlay (S53) files GitHub issues labeled `alpha-feedback` via a server-side token. Triage ritual: `gh issue list --label alpha-feedback` in a Claude Code session, review with James, prioritize into milestones. This is the primary bug/UX intake during alpha.
 
 ## Secrets posture
 

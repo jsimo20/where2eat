@@ -15,6 +15,8 @@ Defines the journey stages, the probable scenarios the MVP must handle, spec gap
 
 **v6 addendum:** availability simplified to three verified states (PRD v2.6): Closed (posted schedule, daily refresh), Open with walk-in/call guidance, and Open with reservations available (live partner check on the user's behalf). Pattern guesses, stale-claim messaging, manual overrides, feedback-driven signals, availability-based ranking, and automated swaps are all removed. S20 and S22 retired.
 
+**v7 addendum:** pre-build alignment (PRD v2.7): team is James + Claude Code; light-first visual direction (artifacts owed by James); photos locked to the Places/Yelp photo APIs with attribution (Google Images ruled out on copyright); signup is Google sign-in or email + password with full name and phone; a skippable location rationale sits in onboarding; and an alpha feedback overlay ships in milestone 1 (S53). Draft content lives in `docs/content/` (third-way matrix, voice guides, quiz copy, venue template, unverified candidate list).
+
 ---
 
 ## 1. Journey map
@@ -160,6 +162,7 @@ Flow diagram lives in technical-design.md section 6.5. Matching never replaces t
 | S32 | Cleared storage / new device, no account | Cold start with honest messaging: "no account means this device starts fresh". This IS the sync value prop; never guilt-trip. |
 | S33 | Data export / delete | Export preference data + history as JSON. Delete wipes server-side anonymous records and instructs on clearing local data. GDPR-style even for US users. For account holders, export and delete cover friends list, sessions, swipes, and display name too. |
 | S34 | Content flag | Any venue description, photo, or fragment can be flagged; flags queue for admin review (PRD community moderation). |
+| S53 | Alpha feedback overlay (v7) | A floating alpha-only control on every screen captures free-text feedback plus auto-context (screen, app version, device, profile UUID; no PII). Items land as GitHub issues labeled `alpha-feedback` and get triaged with Claude Code into the milestone backlog. Hidden or removed after alpha. |
 
 ---
 

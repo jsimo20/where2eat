@@ -208,7 +208,7 @@ Tables and load-bearing columns (Drizzle schema will be the source of truth; thi
 - **reservation_checks**: `id, venue_id, source (opentable|resy|yelp_gm|...), slot_at, party_size, seats_found (bool), checked_at`. Redis hot copy, Postgres history. Replaces the tier-era availability_snapshots: reservation platforms are the only writer (D4); Closed/Open comes straight from `venues.hours`.
 - **events_local**: `id, city_id, date, name, area (bushnell|peoplesbank|trinity_health|other), start_time, expected_impact` (S16).
 - **content_flags**: `id, subject_type, subject_id, reason, status, created_at` (S34).
-- **users** (MVP): Supabase Auth row + `display_name` (shown in lobbies and friends lists; the only PII besides the auth email); `profiles.user_id` nullable FK links the anonymous history on signup (S31, S48).
+- **users** (MVP): Supabase Auth row (Google sign-in or email + password) + `full_name` (used as the display name in lobbies and friends lists) + `phone` (collected at signup per PM decision; no MVP feature consumes it yet, flagged to revisit); `profiles.user_id` nullable FK links the anonymous history on signup (S31, S48).
 - **metrics_daily**: `date, metric, value`. Aggregate-only counters.
 
 Dropped from v1: `itineraries`, `itinerary_acts`, `venue_distances` (deferred with multi-act, Appendix A). Renamed in v3: `swipe_sessions` generalized to `sessions` + `session_participants`.
@@ -364,7 +364,7 @@ These are testable rules, not taste. A screen that violates one needs a written 
 2. Max 5 information elements on a card front (photo, name, meta line, scores, blurb). Everything else is progressive disclosure behind the tap.
 3. Two numbers max per card. Rating and fit. No review counts, no distances-to-the-decimal, no badge soup.
 4. Photography is the interface: full-bleed images, text on a bottom scrim gradient, no chrome while swiping.
-5. Dark-first palette (the app is used on evenings out), one accent color, two type scales per screen, 8pt spacing grid.
+5. Light-first palette (PM decision, v7; a dark variant can follow), one accent color, two type scales per screen, 8pt spacing grid. Accent, logo, and type artifacts are owed by James.
 6. Motion communicates state: spring physics on swipe, haptic tick on decisions, no decorative animation.
 7. Gestures always have visible button equivalents (S35). Accessibility is not a mode.
 8. Empty and thin states are honest and specific ("7 places open tonight that fit"), never fake-infinite.
@@ -392,6 +392,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 | `GET /api/venues/:id` | Detail-sheet payload |
 | `GET /api/venues/:id/availability` | Current state from Redis (Closed / walk-in / reservations); enqueues a background reservation check when stale. Never blocks on an external call (S51) |
 | `POST /api/flags` | Content flag (S34) |
+| `POST /api/alpha-feedback` | Alpha-only overlay: free text + auto-context (screen, app version, device, profile UUID, no PII) filed as a GitHub issue labeled `alpha-feedback` via a server-side token. Rate-limited (S53) |
 | `GET /api/export` / `POST /api/delete` | Data portability + erasure (S33) |
 | `/admin/*` | Venue CRUD (incl. photo picks + menu_url), blurb authoring with Claude drafts, availability overrides, event flags, flag queue, learning-weight inspector. Supabase Auth + allowlist. |
 
@@ -419,7 +420,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 
 ### Security and data governance
 - Anonymous UUIDs, no PII server-side pre-account (D3). Device location, if granted, is used on-device for distance display only and never sent to the server.
-- Account holders carry the product's only PII: auth email (Supabase) and display name (shown in lobbies and friends lists). Export and delete cover both, plus friendships, sessions, and swipes (S33). Friends are added by link, never by contact upload; the server never sees an address book.
+- Account holders carry the product's only PII: auth email, full name (displayed in lobbies and friends lists), and phone number (unused by any MVP feature; kept under review). Export and delete cover all of it, plus friendships, sessions, and swipes (S33). Friends are added by link, never by contact upload; the server never sees an address book. Location permission is requested during onboarding with a rationale screen, skippable, and position never leaves the device.
 - Every session and friend action is authorization-checked server-side: participant membership and open-session status on swipe ingest, host identity on close/lock, friendship status on session invites. Blocked users cannot rejoin or re-add (S47).
 - Rate limiting from day one; zod at every boundary; sanitized errors; fail closed on auth errors. Social caps: rosters of 10, friend-invite issuance throttled per user, session join tokens dead after roster lock.
 - Secrets in env vars only; `.env.example` committed, `.env` and `*.jks` (signing keystore) gitignored; gitleaks pre-commit hook when the repo initializes. Google Maps Android key restricted by package name + SHA-1; partner API credentials server-side only, never shipped in the APK.
@@ -458,7 +459,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 
 ## 14. Build plan (Phase 0, roughly 6 milestones)
 
-1. **Scaffold:** monorepo, CI (lint, typecheck, test, a11y lint), Drizzle schema + migrations, seed script with the alpha venues (restaurants AND bars from day one so the drinks filter is real), first sideloadable hello-world APK to prove the pipeline.
+1. **Scaffold:** monorepo, CI (lint, typecheck, test, a11y lint), Drizzle schema + migrations, seed script with the alpha venues (restaurants AND bars from day one so the drinks filter is real), first sideloadable hello-world APK to prove the pipeline. The alpha feedback overlay (S53) ships here too: every later milestone benefits from it.
 2. **Onboarding + blend:** quiz UI (5 questions + hard-requirements step), anonymous profiles, pass-the-phone flow, blend engine with its full test table, invite-landing web quiz.
 3. **The deck:** generation endpoint, swipe UI with gesture physics and image prefetch, filters, card fronts. Blurbs authored for the alpha venues (editorial sprint alongside). This is the milestone that proves or kills the UI bet, so it comes before availability and feedback polish.
 4. **Detail, shortlist, plans:** detail sheet (gallery, menu in-app browser, booking deep links), shortlist compare, plan creation, offline snapshot.
@@ -474,7 +475,7 @@ Phase 1 adds: 100-venue catalog + blurbs, beta-couple and friend-group APK distr
 
 ## 15. Open questions and risks
 
-1. **Photo licensing.** Google Places photos must be served via Google's media endpoint with attribution, and long-term storage is restricted; Yelp photos require attribution and link-back. Plan: hot-link per ToS with nightly URI refresh + on-device caching, attribution rendered on the gallery. Confirm compliance details before Phase 1; fallback for alpha is hand-collected photos for 25 venues.
+1. **Photo sourcing (decided in v7; compliance check pending).** Photos come from the Google Places photo API and Yelp photo URLs, displayed with attribution, URIs refreshed nightly, cached on-device. This is the scalable path. Google Images (web image search) is explicitly ruled out: those are third-party copyrighted photos with no license to us. Admin picks the best 3 to 5 per venue from the licensed sources; hand-shot photos remain the quality upgrade path for favorites. Confirm attribution-rendering details against both ToS before Phase 1.
 2. **Partner availability access is the MVP's one true external dependency** now that live tiers are in scope. Candidates, roughly in order of plausibility: OpenTable affiliate/partner program, Yelp Guest Manager, SevenRooms, Tock, Resy (Amex) partner relations. Applications out at milestone 1; the pipeline runs against a mock feed until credentials exist. Real risk that none approve for a pre-launch prototype: the reservations state then simply never appears, and every open venue shows walk-in/call guidance with its booking link, which is also the permanent fallback if access is later revoked.
 3. **Third-way matrix content**: 20 archetype pairings need curated blend-zone definitions before alpha (S10).
 4. **Blurb authoring throughput**: ~500 approved blurbs for Phase 1; Claude-drafted, human-approved; needs the editorial contributor budgeted in the PRD.
@@ -485,6 +486,7 @@ Phase 1 adds: 100-venue catalog + blurbs, beta-couple and friend-group APK distr
 9. **Close-time defaults**: the deadline is now the core matching mechanic. Validate the preset list (1h / 3h / this evening / 24h) and the default with the first friend group, and whether the unanimity highlight at results is enough of a moment without live popups.
 10. **Notification gap**: no push in MVP, so matching runs on ~7s polling while the session screen is open plus next-open banners. Workable for same-evening decisions; if sessions stall waiting on closed-app friends, expo-notifications is the first fast-follow.
 11. **Group booking reality**: parties of 7+ often can't book via OpenTable/Resy deep links at all. The plan screen defaults large rosters to the call action; worth validating how that feels.
+12. **Domain and application IDs**: buy the domain before the first APK. As of 2026-07-04, `where2eat.app`, `w2e.app`, and `where2eat.co` were unregistered (RDAP check); `where2eat.com` is taken. Recommendation: `where2eat.app` with `applicationId` = `app.where2eat` (the same string becomes the iOS bundle ID later). One domain then serves Android App Links (`/.well-known/assetlinks.json`) and iOS Universal Links (`apple-app-site-association`), which is the secure, both-platforms path. IDs can't change after testers install without a full reinstall.
 
 ---
 

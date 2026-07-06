@@ -1,7 +1,7 @@
 # Where2Eat Product Requirements Document
 
-**Version 2.6 - Hartford Prototype**
-**Date: July 4, 2026** (v2.5 through v2.2: July 4, 2026; v2.1: May 11, 2026)
+**Version 2.7 - Hartford Prototype**
+**Date: July 4, 2026** (v2.6 through v2.2: July 4, 2026; v2.1: May 11, 2026)
 
 > **v2.2 revision.** Three decisions supersede parts of v2.1 for the prototype:
 >
@@ -18,6 +18,8 @@
 > **v2.5 revision.** Group matching is now fully asynchronous: the lobby/roster-lock model is replaced by a host-set close time. Participants join and swipe on their own schedule before the deadline; results are computed at close as a ranked-overlap leaderboard with unanimous picks highlighted; a late joiner's vetoes remove venues from contention without reshuffling anyone's deck. Live mid-session match popups are dropped. Amended Sections 3.6 and Success Metrics.
 
 > **v2.6 revision.** Availability simplified from four tiers to three verified states: **Closed** (posted schedule, daily refresh), **Open, no reservations** (guidance: try walking in or call), and **Open, reservations available** (OpenTable and other integrated tools check seats on the user's behalf). Removed on purpose: pattern-inferred claims ("usually has tables"), stale-cache claims ("confirmed 23 min ago"), manual availability entry, feedback-driven availability, availability-based ranking, and automated swaps. Sections 4.1 and 4.2 rewritten.
+
+> **v2.7 revision.** Pre-build alignment: team is James + Claude Code (Team section updated); visual direction is light-first (dark variant later); venue photos come from the Google Places photo API and Yelp photo URLs with attribution (Google Images ruled out on copyright); signup is Google sign-in or a native email + password form collecting full name and phone number, with a skippable location-permission rationale during onboarding; an alpha-only in-app feedback overlay files items to the GitHub backlog for triage (Launch Strategy Phase 0).
 
 ---
 
@@ -144,7 +146,7 @@ Minimalist, glossy, low cognitive load. Testable rules, not taste:
 - One decision per screen; the deck asks exactly one question at a time.
 - Five elements max on a card front; two numbers max; everything else is progressive disclosure behind the tap.
 - Photography is the interface: full-bleed images, text on a bottom scrim, no chrome while swiping.
-- Dark-first palette (the app is used on evenings out), one accent color, two type scales per screen.
+- Light-first palette (a dark variant can come later), one accent color, two type scales per screen.
 - Motion communicates state: spring physics, haptic tick on decisions, no decorative animation.
 - Honest empty and thin states ("7 places open tonight that fit"), never fake-infinite feeds.
 
@@ -293,6 +295,7 @@ Accessibility testing is a gating criterion before each phase release.
 
 - **Progressive registration:** Anonymous by default; account creation offered after three completed plans, and required only for group matching (Section 3.6).
 - **Friends (v2.3):** added by invite link only; list, remove, and block. No contact upload, no username search, no discovery.
+- **Signup (v2.7):** Google sign-in or a native email + password form (Supabase Auth; we never store raw passwords ourselves). Collects full name (used as the display name) and phone number. Location permission is requested during onboarding with a rationale screen, is skippable, and location is used on-device only, never sent to the server.
 - **Session-based learning:** Preferences stored on-device for anonymous users.
 - **Data portability:** Export preference data and history.
 - **Privacy controls:** Granular settings for data usage and location sharing.
@@ -314,7 +317,7 @@ Accessibility testing is a gating criterion before each phase release.
 - **Storage minimization:** Only essential preference data is stored; location data deleted after session.
 - **GDPR-style data handling** even for US users.
 - **Analytics privacy:** Aggregate behavioral data only, no individual tracking.
-- **Anonymous analytics (amended v2.3):** aggregate behavioral counters only; no device fingerprinting (an opaque profile UUID provides continuity). Account holders' PII is limited to auth email and display name; friends lists and session history are included in export and deletion.
+- **Anonymous analytics (amended v2.3):** aggregate behavioral counters only; no device fingerprinting (an opaque profile UUID provides continuity). Account holders' PII is limited to auth email, full name, and phone number; friends lists and session history are included in export and deletion.
 - **Clear value exchange:** Account creation unlocks multi-device sync, deeper personalization, saved favorites — never required for core functionality.
 
 ---
@@ -368,6 +371,7 @@ Where2Eat does not try to out-inventory Google or out-curate Eater; it tries to 
 - James and spouse only, via sideloaded APK on both phones (over-the-air updates between installs).
 - 25 manually curated venues (restaurants and bars) across Downtown, West End, and West Hartford.
 - Goal: validate quiz, blend logic, the swipe-deck experience, and core engine.
+- In-app alpha feedback overlay on every screen; items flow to the GitHub backlog and are triaged with Claude Code into build priorities.
 
 ### Phase 1 — Hartford Restaurant Core (Months 3–6)
 
@@ -395,12 +399,11 @@ Where2Eat does not try to out-inventory Google or out-curate Eater; it tries to 
 - Refined recommendation engine.
 - Scalable content operations.
 
-### Team & Resources (Placeholder)
+### Team & Resources (updated v2.7)
 
-- 1 founder/PM (James)
-- 1 full-stack developer (contracted through Phase 2)
-- 1 designer (contracted through Phase 2)
-- 1 local editorial contributor (part-time)
+- 1 founder/PM (James): product decisions, curation, editorial approval, design artifacts (logo, accent, type).
+- Claude Code as the build partner: implementation, content drafting (blurbs, matrices, quiz copy), alpha-feedback triage.
+- Contract designer and editorial contributor: deferred; revisit at Phase 1 if the design system or content pace needs reinforcement.
 
 Budget and hiring plan are deferred until post-prototype.
 
@@ -462,7 +465,7 @@ Budget and hiring plan are deferred until post-prototype.
 
 ---
 
-*Where2Eat v2.6 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars, alone, as a couple, or as a group. Monetization deferred until after prototype validation.*
+*Where2Eat v2.7 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars, alone, as a couple, or as a group. Monetization deferred until after prototype validation.*
 
 ---
 
