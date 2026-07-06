@@ -13,6 +13,8 @@ Defines the journey stages, the probable scenarios the MVP must handle, spec gap
 
 **v5 addendum:** matching goes fully async (PRD v2.5): the lobby/roster-lock model is replaced by a host-set close time. Everyone swipes on their own schedule before the deadline; results at close are a leaderboard with unanimous picks highlighted; late joiners' vetoes shrink the deck without reshuffling it. Live mid-session match popups are gone.
 
+**v6 addendum:** availability simplified to three verified states (PRD v2.6): Closed (posted schedule, daily refresh), Open with walk-in/call guidance, and Open with reservations available (live partner check on the user's behalf). Pattern guesses, stale-claim messaging, manual overrides, feedback-driven signals, availability-based ranking, and automated swaps are all removed. S20 and S22 retired.
+
 ---
 
 ## 1. Journey map
@@ -26,7 +28,7 @@ Seven stages. Every scenario below hangs off one of these.
 | 2 | Blend | Vetoes unioned, soft preferences blended or rotated, summary + compatibility score shown. |
 | 3 | Browse the deck | User picks tonight's story (energy state) and optional filters (cuisine, drinks). A ranked deck of venue cards comes back in under 2s. Swipe left = pass, right = shortlist, tap = detail (photos, menu, hours, booking). A map toggle (Explore) shows the same candidates spatially. |
 | 3b | Group match (opt-in, account-gated) | Host frames the night, invites partner or friends (2 to 10), and sets a close time. Everyone swipes the same deck on their own schedule; at the deadline the leaderboard ranks the overlap (unanimous picks highlighted) and the host locks the pick into the plan. |
-| 4 | Shortlist and decide | Review shortlisted cards side by side, pick the winner (or dinner + drinks pair). Booking actions per availability tier. Plan saved for offline. |
+| 4 | Shortlist and decide | Review shortlisted cards side by side, pick the winner (or dinner + drinks pair). Booking actions per availability state. Plan saved for offline. |
 | 5 | The date | Saved plan works offline. tel:, maps, and menu links function without our backend. |
 | 6 | Afterward | Next-open feedback (would repeat + mood chips). Swipes and feedback feed learning. After 3 completed plans, optional account offer. |
 
@@ -130,13 +132,13 @@ Flow diagram lives in technical-design.md section 6.5. Matching never replaces t
 | ID | Scenario | Required MVP behavior |
 |----|----------|----------------------|
 | S38 | Shortlist review and decide | Shortlisted cards in a compact compare view (photo, fit, rating, price, distance, tier). Picking one (or a dinner + drinks pair) creates the plan. Shortlist persists for the session and syncs to the couple so either partner can look. |
-| S19 | Tier A live availability | "Available now" badge + one-tap deep link to OpenTable/Resy. (Framework built in MVP; effectively dormant until a partner API exists.) |
-| S20 | Tier B stale cache | "Last confirmed available 23 min ago" + booking link. Timestamp always honest. |
-| S21 | Tier C pattern-inferred | "Usually has tables Tue/Wed at 7 PM" + one-tap call. This is the MVP workhorse tier. |
-| S22 | Tier D unavailable | Card carries an "unlikely tonight" badge and is down-ranked, with the next-best same-category venue ranked above it. The transparent-swap note appears if the user shortlists it anyway. |
-| S23 | Availability source outage | Tiers degrade (A drops to B drops to C) and the deck is never blocked by an availability failure. Phone number is the floor. Same behavior if partner access is delayed, denied, or revoked: the pipeline is identical, only the freshest source changes. |
-| S51 | Demand-driven availability refresh (v4) | Deck generation and detail-sheet opens enqueue background refreshes for surfaced venues whose snapshots are stale; the UI renders instantly from cache and tier badges upgrade in place when fresh data lands. No screen ever waits on a partner API. |
-| S52 | Live booking handoff (v4) | With a fresh partner snapshot (Tier A/B), the book button deep-links out with date, time, and party size prefilled. We log the outbound tap as activation; we do not (and cannot) verify booking completion in MVP. |
+| S19 | Open with reservations | A reservation check fresh within 30 minutes found seats at the user's party size: "Reservations available" badge + one-tap booking, date/time/party prefilled. The only state that makes an availability claim, and only from a live check run on the user's behalf. |
+| S20 | ~~Tier B stale cache~~ | Retired in v6: no stale-claim messaging ("last confirmed 23 min ago" is gone). ID not reused. |
+| S21 | Open, walk-in or call | Open per posted schedule but no verified seats (walk-in venue, none left, no partner access, or check failed): "Open · try walking in or call the restaurant." No pattern guesses, ever. A venue with a reservation platform keeps its link in the detail sheet, without a claim. |
+| S22 | ~~Tier D swap~~ | Retired in v6 with the tier model: no availability-based down-ranking, no automated swap suggestions. ID not reused. |
+| S23 | Reservation check outage | If partner checks fail or access is missing, open venues simply show walk-in/call guidance. The deck is never blocked, nothing unverified is claimed, and the phone number is the floor. |
+| S51 | Demand-driven reservation checks (v4) | Deck generation and detail-sheet opens enqueue background seat checks for surfaced venues whose latest check is stale (>5 min); the UI renders instantly from cache and the reservations badge appears in place when fresh data lands. No screen ever waits on a partner API. |
+| S52 | Live booking handoff (v4) | With verified seats (S19), the book button deep-links out with date, time, and party size prefilled. We log the outbound tap as activation; we do not (and cannot) verify booking completion in MVP. |
 | S24 | ~~Mixed availability across acts~~ | Deferred with multi-act itineraries. ID retired, not reused. |
 
 ### Stage 5: During the date
@@ -186,6 +188,7 @@ In the PRD but deliberately deferred, so the build doesn't sprawl:
 - **Multi-act narrative itineraries**: the founding concept, deferred by the v2 pivot to lock the swipe UI first. Fragments, blend, and scoring all survive and feed the deck; act-chaining logic and venue-to-venue distances are parked (essence preserved in the technical design appendix).
 - **Map layers beyond pins** (route optimization, event-density heatmap, weather overlay): Phase 2. The MVP map (v4, S49) is pins + carousel over the deck pool, nothing else.
 - **Booking completion tracking**: we hand off to partner booking flows with prefilled deep links (S52) and log the outbound tap; verifying that a reservation was actually completed requires partner-side integration that stays out of MVP.
+- **Availability guesses (v6)**: no pattern-inferred claims, no stale-cache claims, no manual availability entry, no feedback-driven availability signals. We assert only what the daily schedule refresh and a live reservation check can verify; everything else is "try walking in or call".
 - **Event API integrations** (Ticketmaster/AXS): manual event-flag table in MVP, admin-entered for Bushnell/PeoplesBank/Trinity Health dates.
 - **iOS, public web app, Play Store listing, SMS**: all deferred to the launch-strategy conversation.
 - **Push notifications**: still deferred, but now the top fast-follow. Async sessions surface progress and results via in-app polling and next-open banners; push is what would carry deadline reminders and results announcements to closed apps. Until then, the host's group text does that job.

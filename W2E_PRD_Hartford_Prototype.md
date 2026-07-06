@@ -1,7 +1,7 @@
 # Where2Eat Product Requirements Document
 
-**Version 2.5 - Hartford Prototype**
-**Date: July 4, 2026** (v2.4, v2.3, v2.2: July 4, 2026; v2.1: May 11, 2026)
+**Version 2.6 - Hartford Prototype**
+**Date: July 4, 2026** (v2.5 through v2.2: July 4, 2026; v2.1: May 11, 2026)
 
 > **v2.2 revision.** Three decisions supersede parts of v2.1 for the prototype:
 >
@@ -13,9 +13,11 @@
 
 > **v2.3 revision.** Group swipe matching added to MVP: account holders can run a match session with their partner or friends (rosters of 2 to 10) where everyone swipes the same deck; unanimous right-swipes surface as a match, a ranked-overlap leaderboard is the fallback, and the host locks the pick into the plan. Friends are added by invite link only. Accounts remain optional for the core solo/couple experience and are required for matching. New Section 3.6; amended Sections 1.3, User Account System, Data Governance, Success Metrics.
 
+> **v2.4 revision.** Map/Explore mode and live reservation availability move into MVP. The map (Section 5) is a full-screen toggle showing exactly the deck's candidate pool as pins with a card carousel; ranking layers (routes, heatmaps) stay Phase 2. Live availability ships with demand-driven partner polling (Section 4.2). Honest dependency, stated once: partner API access (OpenTable, Resy, Yelp Guest Manager, SevenRooms, Tock) is granted by those platforms, not built by us. Applications go out at build milestone 1 and the software is partner-ready from day one.
+
 > **v2.5 revision.** Group matching is now fully asynchronous: the lobby/roster-lock model is replaced by a host-set close time. Participants join and swipe on their own schedule before the deadline; results are computed at close as a ranked-overlap leaderboard with unanimous picks highlighted; a late joiner's vetoes remove venues from contention without reshuffling anyone's deck. Live mid-session match popups are dropped. Amended Sections 3.6 and Success Metrics.
 
-> **v2.4 revision.** Map/Explore mode and live reservation availability move into MVP. The map (Section 5) is a full-screen toggle showing exactly the deck's candidate pool as pins with a card carousel; ranking layers (routes, heatmaps) stay Phase 2. Live availability ships through the tier pipeline with demand-driven partner polling (new Section 4.2). Honest dependency, stated once: partner API access (OpenTable, Resy, Yelp Guest Manager, SevenRooms, Tock) is granted by those platforms, not built by us. Applications go out at build milestone 1, the software is partner-ready from day one, and manual + pattern tiers plus prefilled booking deep links carry the experience until access lands.
+> **v2.6 revision.** Availability simplified from four tiers to three verified states: **Closed** (posted schedule, daily refresh), **Open, no reservations** (guidance: try walking in or call), and **Open, reservations available** (OpenTable and other integrated tools check seats on the user's behalf). Removed on purpose: pattern-inferred claims ("usually has tables"), stale-cache claims ("confirmed 23 min ago"), manual availability entry, feedback-driven availability, availability-based ranking, and automated swaps. Sections 4.1 and 4.2 rewritten.
 
 ---
 
@@ -129,7 +131,7 @@ Card front, maximum five elements:
 - Venue name + one metadata line: cuisine or drink tag, neighborhood, price tier, distance.
 - Two numbers only: aggregate rating (Google + Yelp, review-count weighted) and blend-fit percentage.
 - One-line "why this place tonight" blurb, pre-authored per energy archetype with weather/season variants. Tone calibrated to the archetype (cozy = warm and intimate; lively = punchy).
-- Availability badge only when it earns attention ("Available now", "Unlikely tonight").
+- Reservations badge only when a live check verified seats ("Reservations available"); open venues without verified seats carry the walk-in-or-call guidance in the detail view.
 
 Card detail (tap): photo gallery, full blurb, tonight's hours, availability per Section 4.1, one-tap menu (in-app browser), book / call / directions, dietary and accessibility icons, content flag.
 
@@ -173,24 +175,24 @@ There is no group chat in the prototype and none planned: the session link rides
 - **Menus:** every curated venue carries a working menu link, one tap from the card. Menu coverage is a curation requirement.
 - **Cultural context:** Authenticity indicators, signature dishes, cuisine background.
 
-#### 4.1 Real-Time Availability Fallback UX
+#### 4.1 Availability States (simplified in v2.6)
 
-Availability is tiered:
+Availability is exactly three user-facing states, each backed by something we verified. We are deliberately careful about what we tell the user: no guesses, no stale claims.
 
-- **Tier A — Live:** Confirmed via partner API in the last 5 minutes. Show "Available now" + one-tap booking.
-- **Tier B — Stale cache:** Last confirmed 5–60 minutes ago. Show "Last confirmed available 23 min ago" + booking link.
-- **Tier C — Pattern-inferred:** No live signal. Show historical pattern ("Usually has tables Tue/Wed at 7 PM") + one-tap phone call.
-- **Tier D — Unavailable:** In the deck, the card is badged "Unlikely tonight" and down-ranked, with the best same-category alternative ranked above it. If the user shortlists it anyway, a transparent swap suggestion appears ("We swapped Bears Smokehouse for Black-Eyed Sally's — same lively BBQ vibe, available tonight").
+- **Closed:** the venue's posted schedule (from our daily refresh) says it isn't open tonight. Closed venues never appear in a tonight deck; anywhere else they surface (a saved plan, a future-dated shortlist), they're labeled plainly.
+- **Open (no reservations):** open per posted schedule, but no verified seats: the venue doesn't take reservations, a live check found none left, or we couldn't check. The user is told they can try walking in or call the restaurant. If the venue has a reservation platform, its link remains available in the detail view, without an availability claim.
+- **Open (reservations):** OpenTable or another integrated reservation tool checked for available seats on the user's behalf, within the last 30 minutes, at the user's party size, and found them. "Reservations available" + one-tap booking with date, time, and party size prefilled.
 
-#### 4.2 Tier Determination Process (added v2.4)
+Availability never changes a venue's ranking; it informs and routes the action (book vs walk-in/call).
 
-Tiers are computed at read time from snapshot freshness, never stored as venue facts. Three sources write availability snapshots:
+#### 4.2 State Determination Process (amended v2.6)
 
-1. **Pattern provider (always on):** curated hours and closed days, refreshed nightly, plus day-of-week heuristics. Produces Tier C's pattern lines and the closed-tonight signal.
-2. **Manual confirms (alpha workhorse):** the operator marks "confirmed available / confirmed full" from a call or the venue's own booking page; the confirmation is timestamped and decays like any other snapshot.
-3. **Partner feeds (when access is granted):** demand-driven polling. Generating a deck or opening a venue's detail sheet queues a background refresh for surfaced venues whose data is older than 5 minutes, fetching tonight's slots at the session's party size. Screens always render instantly from cache and upgrade in place; no screen ever waits on a partner API.
+Two data sources, nothing else:
 
-The tier math, per venue for tonight's window: closed tonight or a "full" signal under 60 minutes old is **Tier D**; an "available" signal under 5 minutes old is **Tier A**; available 5 to 60 minutes old is **Tier B**; everything else, including stale "full" signals, decays to **Tier C** (a 6 PM "full" says little about 8:30). Booking buttons on Tier A/B deep-link out with date, time, and party size prefilled; the outbound tap is the tracked activation event (booking completion is not verifiable in the prototype).
+1. **Daily schedule refresh:** the nightly job pulls each venue's posted hours and closed days. This alone decides Closed vs Open.
+2. **Reservation checks (when partner access exists):** demand-driven. Generating a deck or opening a venue's detail view queues a background seat check for surfaced venues whose latest check is older than 5 minutes. Screens always render instantly from cache and update in place; no screen ever waits on a partner API. "Reservations available" is only ever asserted from a check fresh within 30 minutes.
+
+There is no manual availability entry and no user-feedback availability signal (deliberately, to keep the system simple and its claims verifiable). If a reservation check fails or partner access doesn't exist yet, open venues simply show the walk-in/call guidance. The outbound booking tap is the tracked activation event; booking completion is not verifiable in the prototype.
 
 ---
 
@@ -270,7 +272,7 @@ Accessibility testing is a gating criterion before each phase release.
 - <2 second deck generation (measured at p95).
 - Swiping holds 60fps with no visible image loading in normal use (upcoming cards prefetched).
 - Explore map pin set updates within 500ms of a filter change (client-side data, no new fetch).
-- Real-time availability updates within tier definitions in Section 4.1.
+- Availability states per Section 4.2: schedule from the daily refresh; seat claims only from reservation checks fresh within 30 minutes.
 - Offline capability for saved plans.
 
 ### Content Quality
@@ -302,7 +304,7 @@ Accessibility testing is a gating criterion before each phase release.
 
 - **Booking fallbacks:** Multiple reservation options per venue, graceful degradation to phone numbers.
 - **Cache strategy:** Pre-load popular venues/availability to handle API outages.
-- **Alternative suggestions:** When a primary choice is unavailable, instant alternatives from the same narrative category (per Section 4.1).
+- **Alternative suggestions:** the shortlist and the deck are the user's alternatives when a choice doesn't work out; the system makes no speculative availability claims or automated swaps (Section 4.2).
 - **Offline mode:** Previously saved plans accessible without internet.
 
 ---
@@ -460,7 +462,7 @@ Budget and hiring plan are deferred until post-prototype.
 
 ---
 
-*Where2Eat v2.5 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars, alone, as a couple, or as a group. Monetization deferred until after prototype validation.*
+*Where2Eat v2.6 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars, alone, as a couple, or as a group. Monetization deferred until after prototype validation.*
 
 ---
 

@@ -1,7 +1,7 @@
 # Where2Eat: Technical Design (MVP)
 
 Covers Phase 0 alpha through Phase 1 of [the PRD](../W2E_PRD_Hartford_Prototype.md) (v2.3: Android APK alpha, restaurants + bars, swipe deck, group matching, minimalist design).
-Scenario IDs (S1..S48) reference [customer-journeys.md](customer-journeys.md). Decision IDs (D1..D9) are stable across revisions. v3 adds account-gated group swipe matching (rosters of 2 to 10) to MVP.
+Scenario IDs (S1..S52; S20, S22, S24 retired) reference [customer-journeys.md](customer-journeys.md). Decision IDs (D1..D10) are stable across revisions.
 
 ---
 
@@ -38,11 +38,12 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 - **Decision:** An opaque UUID profile row is created server-side on first quiz submit. It holds quiz answers, veto answers, and couple membership. No name, email, phone, or location. Plans and history live on-device with a server copy for couple sync; the server keeps only what pairing, blending, and sync require. Accounts (Supabase Auth) now ship in MVP because group matching requires them (D9, S48): signing up attaches auth + a display name to the same profile and migrates local history (S31). Account holders carry the product's only PII: auth email and display name.
 - **Why:** Async invite (S2) and solo-partner-joins-later (S6) are impossible with purely on-device data; friends lists and cross-device match sessions are impossible without durable identity. The anonymous core stays anonymous; PII arrives only when the user opts into the social layer, and export/delete covers all of it (S33).
 
-### D4. Availability: provider abstraction, tiers at read time, demand-driven refresh (revised in v4: live feeds in MVP scope)
+### D4. Availability: three verified states, demand-driven reservation checks (revised in v6: no guesses, no manual entry)
 
-- **Decision:** An `AvailabilityProvider` interface with three writers: `PatternProvider` (curated hours + day-of-week heuristics, always on), `ManualOverride` (admin one-tap confirms, the alpha workhorse), and `PartnerProvider` (OpenTable/Resy/etc., demand-driven polling, built in MVP against a mock feed and activated the day credentials exist). Snapshots land in Redis (hot) and Postgres (history); the tier (A/B/C/D) is derived from snapshot freshness and source at read time (PRD 4.1/4.2), never stored as a fact about the venue.
-- **Demand-driven refresh (S51):** deck generation and detail-sheet opens enqueue background refresh jobs for surfaced venues whose snapshots are older than 5 minutes; a queue worker calls the partner API for tonight's window at the session's party size and writes new snapshots. Screens always render instantly from cache and upgrade in place. This keeps the no-external-calls-on-the-request-path invariant, spends partner rate limits only on venues users are actually looking at (~30 per deck, 100 total in the catalog), and makes freshness proportional to attention.
-- **Honest dependency:** partner API access is granted, not built. Applications (OpenTable affiliate/partner program, Resy/Amex partner relations, Yelp Guest Manager, SevenRooms, Tock) go out at milestone 1 so approval lag overlaps the build. Until and unless access lands: manual confirms produce real Tier A/B during alpha, patterns carry Tier C, and prefilled booking deep links (S52) work regardless.
+- **Decision:** Availability is exactly three user-facing states, each backed by something we verified. **Closed**: the venue's posted schedule (nightly refresh, J1) says it isn't open tonight; closed venues never enter a tonight deck. **Open, walk-in or call**: open per schedule but no verified seats, whether because the venue takes no reservations, a fresh check found none, or we couldn't check. Guidance: "try walking in or call the restaurant"; if the venue has a reservation platform, its link stays available in the detail sheet without an availability claim. **Open, reservations available**: a reservation-platform check (OpenTable and peers) fresh within 30 minutes found seats for tonight at the session's party size: badge + one-tap prefilled booking. State is computed at read time, never stored as a venue fact, and never affects ranking.
+- **Demand-driven checks (S51):** deck generation and detail-sheet opens enqueue background reservation checks for surfaced venues whose latest check is older than 5 minutes; a queue worker asks the partner API and writes the result. Screens render instantly from cache; the reservations badge appears in place when fresh data lands. No external calls on the request path, rate limits spent only where users are looking.
+- **Honest dependency:** partner API access is granted, not built. Applications (OpenTable affiliate/partner program, Yelp Guest Manager, SevenRooms, Tock, Resy/Amex) go out at milestone 1. Until access lands, the reservations state simply never appears: open venues show walk-in/call guidance plus their booking links, which is true and still useful.
+- **Removed in v6:** pattern-inferred user messaging ("usually has tables Tue at 7" is a guess we won't present as knowledge), manual admin confirms (ops burden, cut to keep it simple), stale-claim messaging ("last confirmed 23 min ago"), availability-based down-ranking, and automated swap suggestions. The daily schedule refresh and a live seat check are the only two things we let ourselves assert.
 - **Rejected:** scraping partner availability (ToS breach for a partnership-dependent product), full-catalog polling on a timer (burns rate limits on venues nobody is browsing).
 
 ### D5. Venue-to-venue distances (deferred in v2)
@@ -118,19 +119,19 @@ flowchart TB
         RL[Rate limit middleware]
         API[API routes: profiles, quiz, couples, invites, blends, decks, swipes, sessions, friends, plans, feedback, flags, export]
         INV[Invite landing pages: partner quiz, session join]
-        ADM[Admin: venue CRUD, fragment authoring, photo picks, overrides, event flags, flag queue, learning inspector]
+        ADM[Admin: venue CRUD, fragment authoring, photo picks, event flags, flag queue, learning inspector]
     end
 
     subgraph Data["Data layer"]
         PG[(Postgres via Supabase: venues, fragments, profiles, couples, blends, sessions, swipes, plans, feedback)]
-        RD[(Upstash Redis: availability snapshots, weather cache, rate limits)]
+        RD[(Upstash Redis: reservation checks, weather cache, rate limits)]
     end
 
     subgraph Jobs["Jobs: Vercel Cron + demand-driven queue"]
         J1[Nightly: Places + Yelp refresh, hours and closed checks, photo URIs, curation-bar and quality alerts]
         J2[Hourly: NWS weather pull for Hartford]
         J3[Hourly: invite expiry sweep at 48h]
-        J5[Queue worker: availability refresh for surfaced venues with stale snapshots]
+        J5[Queue worker: reservation checks for surfaced venues with stale data]
     end
 
     subgraph Ext["External (never on the request path except deep links)"]
@@ -165,7 +166,7 @@ Key property preserved from v1: the request path (quiz, blend, deck, swipes, pla
 erDiagram
     CITIES ||--o{ VENUES : contains
     VENUES ||--o{ VENUE_FRAGMENTS : has
-    VENUES ||--o{ AVAILABILITY_SNAPSHOTS : has
+    VENUES ||--o{ RESERVATION_CHECKS : has
     PROFILES ||--o{ QUIZ_RESPONSES : submits
     COUPLES ||--o{ INVITES : issues
     PROFILES }o--o{ COUPLES : members
@@ -204,7 +205,7 @@ Tables and load-bearing columns (Drizzle schema will be the source of truth; thi
 - **feedback**: `id, plan_id, profile_id, would_repeat (bool, nullable), moods[], created_at` (S27). Group plans prompt every participant; each answer feeds that person's own learning.
 - **profile_affinities**: `profile_id, attribute_affinities (jsonb), updated_at`. Swipe nudges accrue to the swiper (D6).
 - **couple_learning**: `couple_id, venue_boosts (jsonb), updated_at`. Feedback boosts stay couple-level (D6).
-- **availability_snapshots**: `id, venue_id, source (partner|manual|pattern), status, slot_at, party_size, observed_at`. Redis hot copy, Postgres history.
+- **reservation_checks**: `id, venue_id, source (opentable|resy|yelp_gm|...), slot_at, party_size, seats_found (bool), checked_at`. Redis hot copy, Postgres history. Replaces the tier-era availability_snapshots: reservation platforms are the only writer (D4); Closed/Open comes straight from `venues.hours`.
 - **events_local**: `id, city_id, date, name, area (bushnell|peoplesbank|trinity_health|other), start_time, expected_impact` (S16).
 - **content_flags**: `id, subject_type, subject_id, reason, status, created_at` (S34).
 - **users** (MVP): Supabase Auth row + `display_name` (shown in lobbies and friends lists; the only PII besides the auth email); `profiles.user_id` nullable FK links the anonymous history on signup (S31, S48).
@@ -252,7 +253,7 @@ flowchart TD
     C2 -->|No| G
     D -->|Yes| G[SCORE each candidate]
     G --> H["Rank top ~30, light diversity shuffle within score bands, seeded by couple + date"]
-    H --> I[Annotate availability tier per card]
+    H --> I[Annotate availability state per card]
     I --> J["Attach card content: photos, blurb fragment for archetype and weather, rating aggregate, fit score, menu and booking actions"]
     J --> K[Return deck, log aggregate metrics]
 ```
@@ -292,36 +293,25 @@ flowchart TD
 
 Swipes batch-post to the API (fire-and-forget with local queue) so gesture latency never waits on the network.
 
-### 6.4 Availability tier decision (S19..S23): unchanged from v1
+### 6.4 Availability states (S19, S21, S23): simplified in v6
 
 ```mermaid
 flowchart TD
-    A[Read freshest snapshot for venue + time window] --> B{Source partner or manual, under 5 min old?}
-    B -->|Yes, available| TA["Tier A: 'Available now' badge + one-tap booking"]
-    B -->|No| C{Snapshot 5 to 60 min old?}
-    C -->|Yes, available| TB["Tier B: 'Last confirmed N min ago' + booking link"]
-    C -->|No| D{Known unavailable tonight?}
-    D -->|Yes| TD["Tier D: 'unlikely tonight' badge, down-ranked, next-best same-category ranked above (S22)"]
-    D -->|No| TC["Tier C: pattern line from hours + history, 'Usually has tables Tue at 7' + tap to call"]
+    A[Venue surfaced: deck, detail, map, or plan] --> B{Open tonight per posted schedule? Nightly refresh J1}
+    B -->|No| CL["CLOSED: excluded from tonight's deck; labeled plainly anywhere else it appears"]
+    B -->|Yes| C{Reservation check fresh within 30 min found seats?}
+    C -->|Yes| RS["OPEN, RESERVATIONS AVAILABLE: badge + one-tap booking, date/time/party prefilled"]
+    C -->|No| WI["OPEN, WALK-IN OR CALL: 'try walking in or call the restaurant'; platform link in detail sheet without a claim"]
 ```
 
-Tier is computed at read time from data freshness, never stored as a fact about the venue.
+**The determination process (v6):**
 
-**The full determination process (v4):**
+1. **Two data sources, nothing else.** The nightly refresh (J1) pulls each venue's posted schedule: that alone decides Closed vs Open. Reservation-platform checks (OpenTable and peers, when access exists) decide whether verified seats exist tonight. No manual entry, no user-feedback signal, no pattern inference anywhere in availability.
+2. **Checks are demand-driven, never blocking:** deck generation and detail-sheet opens enqueue reservation checks for surfaced venues whose latest check is older than 5 minutes (J5). Screens render from cache instantly; the reservations badge appears in place when fresh data lands (S51).
+3. **State math at read time**, per venue for tonight's window and party size: not open per schedule -> **Closed**. Open + a check fresh within 30 minutes found seats -> **Open, reservations available**. Open + anything else (walk-in venue, fresh check found none, no access, check failed) -> **Open, walk-in or call**. A fresh no-seats result sharpens the detail copy ("no online reservations left tonight") but stays within the same state.
+4. **What we never do:** claim seats from stale data, guess from history, or move a venue's rank because of availability. Boundary tests pin the thresholds (29:59 vs 30:01 assertion window, 5:00 refresh trigger; section 12).
 
-1. **Three snapshot writers** feed `availability_snapshots` (Redis hot copy, Postgres history):
-   - `PatternProvider` (always on): curated hours + closed days, refreshed nightly by J1, plus day-of-week heuristics that improve as feedback accumulates. Produces the Tier C strings and the closed-tonight signal.
-   - `ManualOverride` (alpha workhorse): admin one-tap "confirmed available / confirmed full" from a call or the venue's own booking page. Writes a timestamped snapshot like any other source.
-   - `PartnerProvider` (when access is granted): demand-driven; see D4. Fetches tonight's slots at the session's party size.
-2. **Refresh is demand-driven, never blocking:** deck generation and detail-sheet opens enqueue refreshes for surfaced venues with snapshots older than 5 minutes (J5). The screen renders from cache instantly; badges upgrade in place when the worker lands fresh data (S51).
-3. **Tier math at read time** (pure freshness function, per venue + tonight's window + party size):
-   - closed tonight (hours) OR partner/manual "full" less than 60 min old -> **Tier D** (badge, down-rank, best same-category alternative ranked above)
-   - partner/manual "available" less than 5 min old -> **Tier A** ("Available now" + prefilled one-tap booking)
-   - any "available" 5 to 60 min old -> **Tier B** ("Last confirmed N min ago" + booking link)
-   - anything else, including a stale "full" older than 60 min -> **Tier C** (pattern line + tap to call). Stale unavailability decays on purpose: a 6pm "full" says little about 8:30.
-4. **Boundary tests** pin the exact thresholds (4:59 vs 5:01 vs 60:01, section 12).
-
-MVP reality by phase: before partner access, Tier A/B appear only in the hour after a manual confirm, C dominates, D comes from closed days and manual fulls. After access, A/B become the norm for partner-bookable venues while someone is actively browsing them, which is the only time it matters.
+MVP reality by phase: before partner access there is no reservations badge anywhere; every open venue reads "walk in or call" with its booking link one tap away, which is true and still useful. After access, the badge lights up for partner-bookable venues while someone is actually browsing them.
 
 ### 6.5 Group match session (S41..S48): revised in v5, fully async
 
@@ -360,7 +350,7 @@ Front of card (the whole interface while swiping):
 - Name; one metadata line: cuisine or drink tag, neighborhood, price tier, distance from user.
 - Two numbers max: rating (Google+Yelp aggregate) and fit %.
 - One-line blurb: the `why_tonight` fragment for the blend's archetype (weather/season variant if tagged).
-- Tier badge only when it earns attention (available now / unlikely tonight).
+- Reservations badge only when a fresh check verified seats; nothing else makes an availability claim on the card front.
 
 Detail sheet (tap): photo gallery, full blurb, hours tonight, availability line, menu button (in-app browser on `menu_url`), book or call, directions, accessibility and dietary icons, flag action.
 
@@ -400,7 +390,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 | `POST /api/plans` / `GET /api/plans` | Create from shortlist pick; list for couple sync (S38) |
 | `POST /api/plans/:id/feedback` | Would-repeat + moods (S27), accepts offline replays |
 | `GET /api/venues/:id` | Detail-sheet payload |
-| `GET /api/venues/:id/availability` | Current snapshot + tier from Redis; enqueues a background partner refresh when stale. Never blocks on an external call (S51) |
+| `GET /api/venues/:id/availability` | Current state from Redis (Closed / walk-in / reservations); enqueues a background reservation check when stale. Never blocks on an external call (S51) |
 | `POST /api/flags` | Content flag (S34) |
 | `GET /api/export` / `POST /api/delete` | Data portability + erasure (S33) |
 | `/admin/*` | Venue CRUD (incl. photo picks + menu_url), blurb authoring with Claude drafts, availability overrides, event flags, flag queue, learning-weight inspector. Supabase Auth + allowlist. |
@@ -451,7 +441,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 
 - **Blend engine:** table-driven unit tests: veto unions, budget min, all 20 divergent archetype pairs, rotation advancement, solo recompute (S6, S8..S12).
 - **Deck engine:** fixture city of ~15 synthetic venues (restaurants + bars); tests for scoring, filter stacking (filters never bypass vetoes), determinism (same seed, same deck), relax ladder order, thin-deck path, novelty decay (S12..S17, S36, S37).
-- **Availability tiers:** freshness-boundary tests (4:59 vs 5:01 vs 60:01) and outage degradation (S19..S23).
+- **Availability states:** closed-by-schedule edges (late close, midnight rollover), seats-assertion freshness boundary (29:59 vs 30:01), refresh trigger at 5:00, and no-access / check-failure degradation to walk-in-or-call (S19, S21, S23, S51).
 - **Match engine:** table-driven: results at exact close time (read-time evaluation, no cron dependency), host early-close, leaderboard order + fit tie-break, unanimity-among-swipers highlight, late-join veto disqualification (deck shrinks monotonically, prior swipes on removed venues discarded and disclosed), undo honored up to close, swipes rejected after close and from non-participants, roster caps at 2 and 10, lowest ceiling (S41..S48).
 - **Mobile e2e (Maestro):** onboarding modes, swipe-shortlist-plan happy path, undo, filter apply/clear, airplane-mode plan reading, feedback replay on reconnect (S1, S5, S25, S27, S35..S38).
 - **Admin e2e (Playwright):** venue CRUD with required alt text and menu_url, blurb approve flow.
@@ -472,7 +462,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 2. **Onboarding + blend:** quiz UI (5 questions + hard-requirements step), anonymous profiles, pass-the-phone flow, blend engine with its full test table, invite-landing web quiz.
 3. **The deck:** generation endpoint, swipe UI with gesture physics and image prefetch, filters, card fronts. Blurbs authored for the alpha venues (editorial sprint alongside). This is the milestone that proves or kills the UI bet, so it comes before availability and feedback polish.
 4. **Detail, shortlist, plans:** detail sheet (gallery, menu in-app browser, booking deep links), shortlist compare, plan creation, offline snapshot.
-5. **Availability + feedback:** provider abstraction (pattern + manual + partner-ready), demand-driven refresh worker running against a mock partner feed, tier badges and D-swap ranking, prefilled booking deep links, feedback prompt, learning weights. Partner API applications go out at milestone 1 so approval lag overlaps the build.
+5. **Availability + feedback:** the three-state model (schedule-based Closed/Open + partner-ready reservation checks), demand-driven check worker against a mock feed, reservations badge + walk-in/call guidance, prefilled booking deep links, feedback prompt, learning weights. Partner API applications go out at milestone 1 so approval lag overlaps the build.
 6. **Pairing + polish:** async invite lifecycle with 48h sweep, metrics counters, TalkBack pass, OTA channel setup, alpha install on both phones.
 7. **Accounts + friends:** Supabase Auth, anonymous-history migration on signup, display names, add-friend-via-link, remove/block, export/delete extended to social data.
 8. **Match sessions:** deadline lifecycle (create / join / close-on-read), group deck rules (veto union at creation, monotonic disqualification on join, lowest ceiling, host frame), results materialization + leaderboard UI, session deep links, progress polling, plan handoff. First group test: James + spouse + friends.
@@ -485,7 +475,7 @@ Phase 1 adds: 100-venue catalog + blurbs, beta-couple and friend-group APK distr
 ## 15. Open questions and risks
 
 1. **Photo licensing.** Google Places photos must be served via Google's media endpoint with attribution, and long-term storage is restricted; Yelp photos require attribution and link-back. Plan: hot-link per ToS with nightly URI refresh + on-device caching, attribution rendered on the gallery. Confirm compliance details before Phase 1; fallback for alpha is hand-collected photos for 25 venues.
-2. **Partner availability access is the MVP's one true external dependency** now that live tiers are in scope. Candidates, roughly in order of plausibility: OpenTable affiliate/partner program, Yelp Guest Manager, SevenRooms, Tock, Resy (Amex) partner relations. Applications out at milestone 1; the pipeline runs against a mock feed until credentials exist. Real risk that none approve for a pre-launch prototype: alpha then runs on manual confirms (real Tier A/B) + patterns (Tier C), which is also the permanent fallback if access is later revoked.
+2. **Partner availability access is the MVP's one true external dependency** now that live tiers are in scope. Candidates, roughly in order of plausibility: OpenTable affiliate/partner program, Yelp Guest Manager, SevenRooms, Tock, Resy (Amex) partner relations. Applications out at milestone 1; the pipeline runs against a mock feed until credentials exist. Real risk that none approve for a pre-launch prototype: the reservations state then simply never appears, and every open venue shows walk-in/call guidance with its booking link, which is also the permanent fallback if access is later revoked.
 3. **Third-way matrix content**: 20 archetype pairings need curated blend-zone definitions before alpha (S10).
 4. **Blurb authoring throughput**: ~500 approved blurbs for Phase 1; Claude-drafted, human-approved; needs the editorial contributor budgeted in the PRD.
 5. **Menu URL coverage**: some Hartford spots only have PDF menus or Facebook pages. Curation rule needed: what counts as an acceptable `menu_url`, and the fallback chain (S39).

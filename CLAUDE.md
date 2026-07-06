@@ -14,11 +14,13 @@ v4 decisions (folded into PRD v2.4): Explore map in MVP (pins over the deck pool
 
 v5 decision (folded into PRD v2.5): matching is fully async. No lobby; host sets a close time; everyone swipes on their own schedule; results materialize at close as a leaderboard (unanimity highlighted); late joiners' vetoes shrink the deck monotonically. No live match popups.
 
+v6 decision (folded into PRD v2.6): availability is three verified states: Closed (posted schedule, daily refresh), Open walk-in-or-call, Open reservations-available (live partner seat check, fresh within 30 min). No pattern guesses, no stale claims, no manual entry, no feedback signals, no availability-based ranking or swaps.
+
 ## Key files
 
 - `W2E_PRD_Hartford_Prototype.md`: the PRD (v2.3; version history in the doc header and git). Requirements source of truth. Stable filename on purpose: version bumps no longer rename the file.
 - `docs/customer-journeys.md`: journey map, scenario catalog (S1..S52, S24 retired), PRD gap resolutions and deviations, scope cuts.
-- `docs/technical-design.md`: architecture decisions (D1..D10), stack, data model, flow diagrams, card/UI design principles, match engine, availability tier process, API surface, build and sideload distribution plan. Appendix A preserves the deferred multi-act itinerary design.
+- `docs/technical-design.md`: architecture decisions (D1..D10), stack, data model, flow diagrams, card/UI design principles, match engine, availability states, API surface, build and sideload distribution plan. Appendix A preserves the deferred multi-act itinerary design.
 
 Scenario IDs (S-numbers) and decision IDs (D-numbers) are the shared vocabulary; reference them in commits and issues. IDs are stable and never reused.
 
@@ -37,7 +39,7 @@ Scenario IDs (S-numbers) and decision IDs (D-numbers) are the shared vocabulary;
 - Decks are deterministic per session (seeded): every roster member sees the same order; match sessions run on this (S13, S43).
 - Group matching (D9, async as of v5): account-gated, rosters 2..10, host-set close time. Deck generated once at creation (host frame + invited vetoes, lowest ceiling); a link-joiner's vetoes shrink the deck monotonically, never reorder it. Results materialize at close (evaluated on read): leaderboard by right-count, fit tie-break, unanimity highlighted. Only the host locks a pick into the plan. Friends via invite link only; no chat, no search, no live match popups.
 - Anonymous-first: opaque UUID profiles server-side, zero PII pre-account (D3). No device fingerprinting. Location never leaves the device.
-- Availability tiers computed at read time from snapshot freshness (D4): pattern + manual writers always on, partner feeds demand-driven (refresh only what users are browsing) once access is granted. Never block a screen on an external call; stale "full" decays to Tier C after 60 min.
+- Availability (D4, three states as of v6): Closed comes only from the posted schedule (daily refresh); "Reservations available" comes only from a live partner seat check fresh within 30 min (demand-driven, checks only what users are browsing); everything else open is "walk in or call". Never block a screen on an external call; never claim what wasn't verified; availability never affects ranking.
 - Explore map (D10) is a projection of the deck, not a second engine: pins show exactly the current candidate pool (vetoes + filters respected), and map actions are normal swipes.
 - Every gesture has a visible button twin; TalkBack pass gates each release (S35).
 - Deferred: multi-act itineraries, map layers beyond pins (routes, heatmaps, weather overlay), event APIs, push notifications (top fast-follow for matching), group chat (never in prototype), friend search (link-only adds), booking-completion tracking, iOS, Play Store, public web client.
