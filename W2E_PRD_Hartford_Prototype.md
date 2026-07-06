@@ -1,7 +1,7 @@
 # Where2Eat Product Requirements Document
 
-**Version 2.3 - Hartford Prototype**
-**Date: July 4, 2026** (v2.2: July 4, 2026; v2.1: May 11, 2026)
+**Version 2.4 - Hartford Prototype**
+**Date: July 4, 2026** (v2.3, v2.2: July 4, 2026; v2.1: May 11, 2026)
 
 > **v2.2 revision.** Three decisions supersede parts of v2.1 for the prototype:
 >
@@ -12,6 +12,8 @@
 > Amended sections: 1.1 (quiz Q5), 3 (core experience), 4 (coverage, menus), 5 (mode naming), Technical Requirements (platform, performance), Launch Strategy, Success Metrics. Companion design docs: `docs/customer-journeys.md`, `docs/technical-design.md`.
 
 > **v2.3 revision.** Group swipe matching added to MVP: account holders can run a match session with their partner or friends (rosters of 2 to 10) where everyone swipes the same deck; unanimous right-swipes surface as a match, a ranked-overlap leaderboard is the fallback, and the host locks the pick into the plan. Friends are added by invite link only. Accounts remain optional for the core solo/couple experience and are required for matching. New Section 3.6; amended Sections 1.3, User Account System, Data Governance, Success Metrics.
+
+> **v2.4 revision.** Map/Explore mode and live reservation availability move into MVP. The map (Section 5) is a full-screen toggle showing exactly the deck's candidate pool as pins with a card carousel; ranking layers (routes, heatmaps) stay Phase 2. Live availability ships through the tier pipeline with demand-driven partner polling (new Section 4.2). Honest dependency, stated once: partner API access (OpenTable, Resy, Yelp Guest Manager, SevenRooms, Tock) is granted by those platforms, not built by us. Applications go out at build milestone 1, the software is partner-ready from day one, and manual + pattern tiers plus prefilled booking deep links carry the experience until access lands.
 
 ---
 
@@ -179,17 +181,28 @@ Availability is tiered:
 - **Tier C — Pattern-inferred:** No live signal. Show historical pattern ("Usually has tables Tue/Wed at 7 PM") + one-tap phone call.
 - **Tier D — Unavailable:** In the deck, the card is badged "Unlikely tonight" and down-ranked, with the best same-category alternative ranked above it. If the user shortlists it anyway, a transparent swap suggestion appears ("We swapped Bears Smokehouse for Black-Eyed Sally's — same lively BBQ vibe, available tonight").
 
+#### 4.2 Tier Determination Process (added v2.4)
+
+Tiers are computed at read time from snapshot freshness, never stored as venue facts. Three sources write availability snapshots:
+
+1. **Pattern provider (always on):** curated hours and closed days, refreshed nightly, plus day-of-week heuristics. Produces Tier C's pattern lines and the closed-tonight signal.
+2. **Manual confirms (alpha workhorse):** the operator marks "confirmed available / confirmed full" from a call or the venue's own booking page; the confirmation is timestamped and decays like any other snapshot.
+3. **Partner feeds (when access is granted):** demand-driven polling. Generating a deck or opening a venue's detail sheet queues a background refresh for surfaced venues whose data is older than 5 minutes, fetching tonight's slots at the session's party size. Screens always render instantly from cache and upgrade in place; no screen ever waits on a partner API.
+
+The tier math, per venue for tonight's window: closed tonight or a "full" signal under 60 minutes old is **Tier D**; an "available" signal under 5 minutes old is **Tier A**; available 5 to 60 minutes old is **Tier B**; everything else, including stale "full" signals, decays to **Tier C** (a 6 PM "full" says little about 8:30). Booking buttons on Tier A/B deep-link out with date, time, and party size prefilled; the outbound tap is the tracked activation event (booking completion is not verifiable in the prototype).
+
 ---
 
 ### 5. Map and Explore UX (Secondary View)
 
-The **primary UX is the swipe deck** (Section 3, amended v2.2). The map view is a secondary, opt-in "Explore" mode for users who want to browse spatially rather than swipe curated cards. Users toggle between Deck Mode (default) and Explore Mode. Explore Mode remains deferred to Phase 2.
+The **primary UX is the swipe deck** (Section 3). The map is a secondary, opt-in "Explore" mode for users who want to browse spatially rather than swipe. **In MVP as of v2.4:**
 
-In Explore Mode:
+- One tap toggles the deck into a full-screen map.
+- Pins show exactly the current deck's candidate pool: same vetoes, same filters, same story. The map never surfaces a venue the deck wouldn't.
+- Tapping a pin opens that venue's card in a bottom carousel; swiping the carousel pans the map. Pass and shortlist work from the map card and count as normal swipes; tapping through opens the same detail sheet (menu, photos, availability, booking).
+- Location permission is optional: without it the map centers on Hartford; with it, a position dot appears (position is used on-device only).
 
-- **Split-screen design:** Map + list synchronized.
-- **Route optimization:** Drive times, parking, walkability.
-- **Contextual layers:** Weather, neighborhood characteristics, event-density heatmap.
+Deferred to Phase 2: route optimization (drive times, parking, walkability), contextual layers (weather, neighborhood character, event-density heatmap), and the split-screen web layout.
 
 This resolves the prior tension between "narrative, not lists" and "split-screen map + list" — they are two distinct modes, not one conflicted screen.
 
@@ -240,7 +253,7 @@ Accessibility testing is a gating criterion before each phase release.
 ### Data Sources
 
 - Google Places API for restaurant listings
-- OpenTable, Resy, Yelp APIs for reservation availability
+- OpenTable, Resy, Yelp APIs for reservation availability (v2.4: partner-access applications at build milestone 1; demand-driven polling once granted; manual/pattern tiers and prefilled booking deep links regardless)
 - Event data for concerts, sports, shows (deferred: manual event flags in the prototype; Ticketmaster/AXS/venue APIs arrive with Phase 3)
 - Real-time traffic/parking data (deferred: curated parking notes in the prototype)
 - Weather API for Hartford-specific conditions (New England seasonal swings, nor'easters)
@@ -255,6 +268,7 @@ Accessibility testing is a gating criterion before each phase release.
 
 - <2 second deck generation (measured at p95).
 - Swiping holds 60fps with no visible image loading in normal use (upcoming cards prefetched).
+- Explore map pin set updates within 500ms of a filter change (client-side data, no new fetch).
 - Real-time availability updates within tier definitions in Section 4.1.
 - Offline capability for saved plans.
 
@@ -364,7 +378,7 @@ Where2Eat does not try to out-inventory Google or out-curate Eater; it tries to 
 - 50–100 active couples.
 - Automated venue discovery and aggregation across full Hartford metro.
 - Multi-platform booking integration.
-- Enhanced map/Explore Mode.
+- Explore Mode enhancements: route optimization, contextual layers (weather, event density).
 
 ### Phase 3 — Full Date Night Orchestration (Year 2)
 

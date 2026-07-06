@@ -38,10 +38,12 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 - **Decision:** An opaque UUID profile row is created server-side on first quiz submit. It holds quiz answers, veto answers, and couple membership. No name, email, phone, or location. Plans and history live on-device with a server copy for couple sync; the server keeps only what pairing, blending, and sync require. Accounts (Supabase Auth) now ship in MVP because group matching requires them (D9, S48): signing up attaches auth + a display name to the same profile and migrates local history (S31). Account holders carry the product's only PII: auth email and display name.
 - **Why:** Async invite (S2) and solo-partner-joins-later (S6) are impossible with purely on-device data; friends lists and cross-device match sessions are impossible without durable identity. The anonymous core stays anonymous; PII arrives only when the user opts into the social layer, and export/delete covers all of it (S33).
 
-### D4. Availability is a provider abstraction with tiers computed at read time (unchanged)
+### D4. Availability: provider abstraction, tiers at read time, demand-driven refresh (revised in v4: live feeds in MVP scope)
 
-- **Decision:** An `AvailabilityProvider` interface with pluggable sources: `ManualOverride` (alpha), `PatternProvider` (curated hours + day-of-week heuristics), later `PartnerProvider` (OpenTable/Resy if a partnership lands). Snapshots land in Redis and Postgres; the tier (A/B/C/D) is derived from snapshot freshness and source at read time (PRD 4.1). Tiers render as card badges and drive the primary action (book vs call).
-- **Why:** No prototype gets OpenTable/Resy availability APIs. Ships the full tier UX now, running mostly on Tier C, and slots partner APIs in later without touching the UI. Scraping rejected: ToS risk for a partnership-dependent product.
+- **Decision:** An `AvailabilityProvider` interface with three writers: `PatternProvider` (curated hours + day-of-week heuristics, always on), `ManualOverride` (admin one-tap confirms, the alpha workhorse), and `PartnerProvider` (OpenTable/Resy/etc., demand-driven polling, built in MVP against a mock feed and activated the day credentials exist). Snapshots land in Redis (hot) and Postgres (history); the tier (A/B/C/D) is derived from snapshot freshness and source at read time (PRD 4.1/4.2), never stored as a fact about the venue.
+- **Demand-driven refresh (S51):** deck generation and detail-sheet opens enqueue background refresh jobs for surfaced venues whose snapshots are older than 5 minutes; a queue worker calls the partner API for tonight's window at the session's party size and writes new snapshots. Screens always render instantly from cache and upgrade in place. This keeps the no-external-calls-on-the-request-path invariant, spends partner rate limits only on venues users are actually looking at (~30 per deck, 100 total in the catalog), and makes freshness proportional to attention.
+- **Honest dependency:** partner API access is granted, not built. Applications (OpenTable affiliate/partner program, Resy/Amex partner relations, Yelp Guest Manager, SevenRooms, Tock) go out at milestone 1 so approval lag overlaps the build. Until and unless access lands: manual confirms produce real Tier A/B during alpha, patterns carry Tier C, and prefilled booking deep links (S52) work regardless.
+- **Rejected:** scraping partner availability (ToS breach for a partnership-dependent product), full-catalog polling on a timer (burns rate limits on venues nobody is browsing).
 
 ### D5. Venue-to-venue distances (deferred in v2)
 
@@ -69,6 +71,12 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 - **Why each piece:** the lobby lock kills every join-after-match consistency bug in one move. Unanimity is the only match rule that needs no explanation and no arguing; the leaderboard is the honest outcome for rosters of 6+, where unanimity gets rare. Host authority means one person books (a table for 8 doesn't need a committee). Link-only friends and zero free-text keep the abuse/moderation surface near nil at alpha scale.
 - **Rejected:** majority-vote thresholds (arbitrary and argues with itself), live-only synchronous sessions (friends trickle in over an hour), client-computed matches (match logic belongs inside the trust boundary), group chat (the group already has one; it's called their text thread).
 
+### D10. Explore map is a view over the deck, not a second engine (new in v4)
+
+- **Decision:** A full-screen map toggle (react-native-maps, Google provider) whose pins are exactly the current session's candidate pool: same vetoes, same filters, same story, same scoring. Tap a pin for its card in a bottom carousel (carousel swipes pan the map); pass/shortlist from the map count as normal swipes; tap-through lands on the same detail sheet. Location permission optional (defaults to Hartford center; position never leaves the device).
+- **Why:** browsing spatially is a real mode ("what's near the theater?"), but a second ranking surface would fork the product logic and the cognitive model. One engine, two projections keeps vetoes unbreakable (a vegan-hostile venue can't sneak in via the map) and keeps swipe data unified.
+- **Rejected:** split-screen map+list (phone real estate, violates one-decision-per-screen), Mapbox (fine product, but Google's provider pairs with our Places data and the dev's likely familiarity), map-first UX (the deck is the bet; the map is disclosure of geography).
+
 ## 3. Stack
 
 | Layer | Choice | Why it fits |
@@ -82,6 +90,7 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 | Database | Postgres (Supabase) | Relational fits the model; Supabase bundles auth and storage. |
 | Auth | Supabase Auth (MVP) | Group matching is account-gated (D9); anonymous UUID profiles link to the account on signup. Vetted library, never roll our own (house rule). |
 | Deep links | expo-linking + Android App Links | Friend and session invites open straight into the lobby (S42). |
+| Maps | react-native-maps (Google provider) | Explore mode (D10). Android SDK key is billing-enabled but free-tier generous; restricted by package name + SHA-1. |
 | ORM | Drizzle | Type-safe schema in TypeScript; schemas shared with the client via the monorepo package. |
 | Cache / rate limit | Upstash Redis + @upstash/ratelimit | Availability snapshots, weather cache, day-one rate limiting (PRD requirement). |
 | Weather | NWS API (api.weather.gov) | Free, no key, US government, hourly forecast for the Hartford grid. Open-Meteo fallback. |
@@ -99,6 +108,7 @@ Dropped from v1: Serwist/PWA (replaced by the native app), Radix (web-only; admi
 flowchart TB
     subgraph Client["Android app: Expo / React Native"]
         DECK[Swipe deck: cards, filters, detail sheet]
+        EXPL[Explore map: pins over the current deck pool]
         MATCH[Match sessions: friends, lobby, progress poll, results]
         PLANS[Shortlist + plans, offline via MMKV + image cache]
         OTA[expo-updates OTA channel]
@@ -116,10 +126,11 @@ flowchart TB
         RD[(Upstash Redis: availability snapshots, weather cache, rate limits)]
     end
 
-    subgraph Jobs["Cron jobs (Vercel Cron)"]
+    subgraph Jobs["Jobs: Vercel Cron + demand-driven queue"]
         J1[Nightly: Places + Yelp refresh, hours and closed checks, photo URIs, curation-bar and quality alerts]
         J2[Hourly: NWS weather pull for Hartford]
         J3[Hourly: invite expiry sweep at 48h]
+        J5[Queue worker: availability refresh for surfaced venues with stale snapshots]
     end
 
     subgraph Ext["External (never on the request path except deep links)"]
@@ -127,14 +138,17 @@ flowchart TB
         YF[Yelp Fusion API]
         NWS[NWS weather API]
         CL[Claude API: blurb drafting]
+        PA[Partner availability APIs: OpenTable / Resy / etc., when access is granted]
         BK[Booking deep links: OpenTable, Resy, tel:]
         MP[Maps deep links + in-app menu browser]
     end
 
-    DECK & MATCH & PLANS --> RL
+    DECK & EXPL & MATCH & PLANS --> RL
     INV --> RL
     RL --> API
     API --> PG & RD
+    API -. enqueue stale refresh .-> J5
+    J5 --> PA & RD & PG
     ADM --> PG
     ADM --> CL
     J1 --> GP & YF & PG
@@ -293,7 +307,23 @@ flowchart TD
     D -->|No| TC["Tier C: pattern line from hours + history, 'Usually has tables Tue at 7' + tap to call"]
 ```
 
-Tier is computed at read time from data freshness, never stored as a fact about the venue. MVP reality: Tier C most of the time, B/A only via manual override (alpha) or a future partner feed.
+Tier is computed at read time from data freshness, never stored as a fact about the venue.
+
+**The full determination process (v4):**
+
+1. **Three snapshot writers** feed `availability_snapshots` (Redis hot copy, Postgres history):
+   - `PatternProvider` (always on): curated hours + closed days, refreshed nightly by J1, plus day-of-week heuristics that improve as feedback accumulates. Produces the Tier C strings and the closed-tonight signal.
+   - `ManualOverride` (alpha workhorse): admin one-tap "confirmed available / confirmed full" from a call or the venue's own booking page. Writes a timestamped snapshot like any other source.
+   - `PartnerProvider` (when access is granted): demand-driven; see D4. Fetches tonight's slots at the session's party size.
+2. **Refresh is demand-driven, never blocking:** deck generation and detail-sheet opens enqueue refreshes for surfaced venues with snapshots older than 5 minutes (J5). The screen renders from cache instantly; badges upgrade in place when the worker lands fresh data (S51).
+3. **Tier math at read time** (pure freshness function, per venue + tonight's window + party size):
+   - closed tonight (hours) OR partner/manual "full" less than 60 min old -> **Tier D** (badge, down-rank, best same-category alternative ranked above)
+   - partner/manual "available" less than 5 min old -> **Tier A** ("Available now" + prefilled one-tap booking)
+   - any "available" 5 to 60 min old -> **Tier B** ("Last confirmed N min ago" + booking link)
+   - anything else, including a stale "full" older than 60 min -> **Tier C** (pattern line + tap to call). Stale unavailability decays on purpose: a 6pm "full" says little about 8:30.
+4. **Boundary tests** pin the exact thresholds (4:59 vs 5:01 vs 60:01, section 12).
+
+MVP reality by phase: before partner access, Tier A/B appear only in the hour after a manual confirm, C dominates, D comes from closed days and manual fulls. After access, A/B become the norm for partner-bookable venues while someone is actively browsing them, which is the only time it matters.
 
 ### 6.5 Group match session (S41..S48): new in v3
 
@@ -373,6 +403,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 | `POST /api/plans` / `GET /api/plans` | Create from shortlist pick; list for couple sync (S38) |
 | `POST /api/plans/:id/feedback` | Would-repeat + moods (S27), accepts offline replays |
 | `GET /api/venues/:id` | Detail-sheet payload |
+| `GET /api/venues/:id/availability` | Current snapshot + tier from Redis; enqueues a background partner refresh when stale. Never blocks on an external call (S51) |
 | `POST /api/flags` | Content flag (S34) |
 | `GET /api/export` / `POST /api/delete` | Data portability + erasure (S33) |
 | `/admin/*` | Venue CRUD (incl. photo picks + menu_url), blurb authoring with Claude drafts, availability overrides, event flags, flag queue, learning-weight inspector. Supabase Auth + allowlist. |
@@ -404,7 +435,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 - Account holders carry the product's only PII: auth email (Supabase) and display name (shown in lobbies and friends lists). Export and delete cover both, plus friendships, sessions, and swipes (S33). Friends are added by link, never by contact upload; the server never sees an address book.
 - Every session and friend action is authorization-checked server-side: roster membership on swipe ingest, host identity on start/end/lock, friendship status on session invites. Blocked users cannot rejoin or re-add (S47).
 - Rate limiting from day one; zod at every boundary; sanitized errors; fail closed on auth errors. Social caps: rosters of 10, friend-invite issuance throttled per user, session join tokens dead after roster lock.
-- Secrets in env vars only; `.env.example` committed, `.env` and `*.jks` (signing keystore) gitignored; gitleaks pre-commit hook when the repo initializes.
+- Secrets in env vars only; `.env.example` committed, `.env` and `*.jks` (signing keystore) gitignored; gitleaks pre-commit hook when the repo initializes. Google Maps Android key restricted by package name + SHA-1; partner API credentials server-side only, never shipped in the APK.
 - APK signing keystore backed up outside the repo (losing it means testers reinstall from scratch).
 
 ### Analytics (privacy stance)
@@ -444,10 +475,11 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 2. **Onboarding + blend:** quiz UI (5 questions + hard-requirements step), anonymous profiles, pass-the-phone flow, blend engine with its full test table, invite-landing web quiz.
 3. **The deck:** generation endpoint, swipe UI with gesture physics and image prefetch, filters, card fronts. Blurbs authored for the alpha venues (editorial sprint alongside). This is the milestone that proves or kills the UI bet, so it comes before availability and feedback polish.
 4. **Detail, shortlist, plans:** detail sheet (gallery, menu in-app browser, booking deep links), shortlist compare, plan creation, offline snapshot.
-5. **Availability + feedback:** provider abstraction (manual + pattern), tier badges and D-swap ranking, feedback prompt, learning weights.
+5. **Availability + feedback:** provider abstraction (pattern + manual + partner-ready), demand-driven refresh worker running against a mock partner feed, tier badges and D-swap ranking, prefilled booking deep links, feedback prompt, learning weights. Partner API applications go out at milestone 1 so approval lag overlaps the build.
 6. **Pairing + polish:** async invite lifecycle with 48h sweep, metrics counters, TalkBack pass, OTA channel setup, alpha install on both phones.
 7. **Accounts + friends:** Supabase Auth, anonymous-history migration on signup, display names, add-friend-via-link, remove/block, export/delete extended to social data.
 8. **Match sessions:** lobby + roster lock, group deck rules (veto union, lowest ceiling, host frame), match engine + results leaderboard, session deep links, state polling, plan handoff. First group test: James + spouse + friends.
+9. **Explore map:** react-native-maps toggle, pins over the live deck pool, bottom card carousel with pass/shortlist parity, location-optional centering (S49, S50).
 
 The couple alpha can ship after milestone 6; matching (7 and 8) lands right behind it. That sequencing keeps the core loop validating on real date nights while the social layer is built.
 
@@ -456,7 +488,7 @@ Phase 1 adds: 100-venue catalog + blurbs, beta-couple and friend-group APK distr
 ## 15. Open questions and risks
 
 1. **Photo licensing.** Google Places photos must be served via Google's media endpoint with attribution, and long-term storage is restricted; Yelp photos require attribution and link-back. Plan: hot-link per ToS with nightly URI refresh + on-device caching, attribution rendered on the gallery. Confirm compliance details before Phase 1; fallback for alpha is hand-collected photos for 25 venues.
-2. **Partner availability APIs** (OpenTable/Resy): almost certainly unavailable to a prototype. Tier C is the workhorse; Tier A UX ships dormant.
+2. **Partner availability access is the MVP's one true external dependency** now that live tiers are in scope. Candidates, roughly in order of plausibility: OpenTable affiliate/partner program, Yelp Guest Manager, SevenRooms, Tock, Resy (Amex) partner relations. Applications out at milestone 1; the pipeline runs against a mock feed until credentials exist. Real risk that none approve for a pre-launch prototype: alpha then runs on manual confirms (real Tier A/B) + patterns (Tier C), which is also the permanent fallback if access is later revoked.
 3. **Third-way matrix content**: 20 archetype pairings need curated blend-zone definitions before alpha (S10).
 4. **Blurb authoring throughput**: ~500 approved blurbs for Phase 1; Claude-drafted, human-approved; needs the editorial contributor budgeted in the PRD.
 5. **Menu URL coverage**: some Hartford spots only have PDF menus or Facebook pages. Curation rule needed: what counts as an acceptable `menu_url`, and the fallback chain (S39).
