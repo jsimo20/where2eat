@@ -6,11 +6,11 @@ Hartford, CT date-night app: quiz -> couple "blend" -> swipe deck of curated res
 
 Design phase, v2 (swipe pivot). No code yet. Docs are the deliverable so far.
 
-v2 pivot decisions (supersede parts of the PRD): Android app via sideloaded APK for alpha; restaurants + bars only; swipe-deck UX (Tinder/Hinge-style) instead of multi-act narrative itineraries, which are deferred; minimalist low-cognitive-load design as a release gate.
+v2 pivot decisions (folded into PRD v2.2): Android app via sideloaded APK for alpha; restaurants + bars only; swipe-deck UX (Tinder/Hinge-style) instead of multi-act narrative itineraries, which are deferred; minimalist low-cognitive-load design as a release gate.
 
 ## Key files
 
-- `W2E_PRD_Hartford_Prototype_v2.1_1.md`: the PRD (v2.1). Requirements source of truth, EXCEPT where the v2 pivot amends it (platform, core UX, scope). Deviations are listed in docs/customer-journeys.md section 3.
+- `W2E_PRD_Hartford_Prototype_v2.2.md`: the PRD (v2.2, amended for the swipe pivot). Requirements source of truth.
 - `docs/customer-journeys.md`: journey map, scenario catalog (S1..S40, S24 retired), PRD gap resolutions and deviations, scope cuts.
 - `docs/technical-design.md`: architecture decisions (D1..D8), stack, data model, flow diagrams, card/UI design principles, API surface, build and sideload distribution plan. Appendix A preserves the deferred multi-act itinerary design.
 

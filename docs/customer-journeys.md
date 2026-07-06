@@ -1,9 +1,9 @@
 # Where2Eat: Customer Journeys and MVP Scenario Catalog
 
-Companion to [W2E_PRD_Hartford_Prototype_v2.1_1.md](../W2E_PRD_Hartford_Prototype_v2.1_1.md).
+Companion to [W2E_PRD_Hartford_Prototype_v2.2.md](../W2E_PRD_Hartford_Prototype_v2.2.md).
 Defines the journey stages, the probable scenarios the MVP must handle, spec gaps found in the PRD (with proposed resolutions), and the scope lines.
 
-**Revision note (v2):** this version reflects three PM decisions that supersede parts of the PRD: (1) Android app distributed by sideloaded APK for alpha testing, web deferred; (2) scope limited to restaurants and bars, multi-act narrative itineraries deferred; (3) core UX is a swipe deck (Tinder/Hinge-style cards) with photo-forward venue cards, fit scores, menu access, and cuisine/drinks filters, under a minimalist low-cognitive-load design goal.
+**Revision note (v2):** this version reflects three PM decisions, since folded into PRD v2.2: (1) Android app distributed by sideloaded APK for alpha testing, web deferred; (2) scope limited to restaurants and bars, multi-act narrative itineraries deferred; (3) core UX is a swipe deck (Tinder/Hinge-style cards) with photo-forward venue cards, fit scores, menu access, and cuisine/drinks filters, under a minimalist low-cognitive-load design goal.
 
 **MVP definition used throughout:** Phase 0 closed alpha through Phase 1. Android app (Expo/React Native), sideloaded APK, 25 then 100 curated venues (restaurants and bars), swipe-deck UX. Launch/deployment strategy deliberately deferred until the alpha experience is satisfactory.
 
@@ -137,7 +137,7 @@ Numbered so we can reference them in the technical design and test plan. "Requir
 
 ## 3. Spec gaps and PRD deviations, with resolutions
 
-Items 1 to 6 are ambiguities found in the PRD. Items 7 to 10 are deliberate deviations introduced by the v2 pivot; the PRD should be amended to match.
+Items 1 to 6 are ambiguities found in the PRD. Items 7 to 10 were deliberate deviations introduced by the v2 pivot, folded into PRD v2.2.
 
 1. **Vetoes are not in the 5-question quiz.** The quiz (PRD 1.1) covers neighborhood, energy, radius, budget comfort, structure. But the blend's hard vetoes (PRD 2.1) need dietary restrictions, accessibility needs, and an absolute budget ceiling. Resolution: onboarding = 5 personality questions + a separate "hard requirements" step. Also keeps "budget comfort zone" (soft, blendable) distinct from "absolute ceiling" (veto), which the PRD itself distinguishes.
 2. **Who sends the invite?** PRD says "shares an invite link via SMS or email". Resolution: the user sends it themselves via the device share sheet. No SMS provider, no email infrastructure, no partner PII collected. The 48h nudge is in-app on A's next open (we have no channel to reach an anonymous A anyway).
@@ -146,7 +146,7 @@ Items 1 to 6 are ambiguities found in the PRD. Items 7 to 10 are deliberate devi
 5. **Device fingerprinting (PRD Data Governance) conflicts with the privacy stance.** Resolution: drop it. The anonymous profile UUID already provides continuity without fingerprinting's privacy smell.
 6. **Anonymous-but-paired tension.** PRD says anonymous preferences live on-device, but async invite and solo-partner-joins-later require both quizzes server-side to compute the blend. Resolution: minimal anonymous server record (opaque UUID + quiz answers + couple link, zero PII, deletable via S33). History and saved plans stay local-first with a server copy for couple sync.
 7. **Platform (PRD says web-first).** v2 decision: Android app (Expo/React Native), sideloaded APK for alpha; the only web surfaces are the admin tool and the invite-landing quiz page (S2). iOS and public web deferred to the launch-strategy conversation.
-8. **Core experience (PRD section 3 says 3 to 5 narrative itineraries).** v2 decision: swipe deck of individual venue cards. Pre-authored narrative fragments survive as card blurbs; multi-act assembly is deferred (see scope cuts). PRD section 3 needs rewriting when we next touch it.
+8. **Core experience (PRD section 3 says 3 to 5 narrative itineraries).** v2 decision: swipe deck of individual venue cards. Pre-authored narrative fragments survive as card blurbs; multi-act assembly is deferred (see scope cuts). PRD section 3 was rewritten in v2.2.
 9. **Evening structure question (quiz Q5).** With restaurants + bars only, the PRD's options (dinner + live music / + show / + late-night) can't be honored. Resolution: Q5 narrows to dinner only / dinner then drinks / drinks then dinner / just drinks. Original options return with Phase 3 orchestration.
 10. **Scores on cards.** "Most accurate score" = two numbers max per card for cognitive load: the Google+Yelp count-weighted rating and a blend-fit percentage (from deck scoring). Couple compatibility score stays on the blend screen only.
 

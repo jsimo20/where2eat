@@ -1,6 +1,6 @@
 # Where2Eat: Technical Design (MVP)
 
-Covers Phase 0 alpha through Phase 1 of [the PRD](../W2E_PRD_Hartford_Prototype_v2.1_1.md), as amended by the v2 pivot (Android APK alpha, restaurants + bars only, swipe-deck UX, minimalist design).
+Covers Phase 0 alpha through Phase 1 of [the PRD](../W2E_PRD_Hartford_Prototype_v2.2.md) (v2.2: Android APK alpha, restaurants + bars only, swipe-deck UX, minimalist design).
 Scenario IDs (S1..S40) reference [customer-journeys.md](customer-journeys.md). Decision IDs (D1..D8) are stable across revisions.
 
 ---
