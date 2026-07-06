@@ -11,6 +11,8 @@ Defines the journey stages, the probable scenarios the MVP must handle, spec gap
 
 **v4 addendum:** map/Explore mode and live reservation availability move into MVP (PRD v2.4). The map is a toggle view over exactly the deck's candidate pool, never a second engine. Live availability ships as demand-driven partner polling through the D4 provider abstraction, with one honest dependency: partner API access is granted by OpenTable/Resy/etc., not by us. Applications go out at milestone 1; the software is partner-ready either way, and manual + pattern tiers carry the alpha until access lands.
 
+**v5 addendum:** matching goes fully async (PRD v2.5): the lobby/roster-lock model is replaced by a host-set close time. Everyone swipes on their own schedule before the deadline; results at close are a leaderboard with unanimous picks highlighted; late joiners' vetoes shrink the deck without reshuffling it. Live mid-session match popups are gone.
+
 ---
 
 ## 1. Journey map
@@ -23,7 +25,7 @@ Seven stages. Every scenario below hangs off one of these.
 | 1 | Onboarding | 5-question quiz plus a hard-requirements step, via one of three pairing modes (pass-the-phone, async invite, solo). |
 | 2 | Blend | Vetoes unioned, soft preferences blended or rotated, summary + compatibility score shown. |
 | 3 | Browse the deck | User picks tonight's story (energy state) and optional filters (cuisine, drinks). A ranked deck of venue cards comes back in under 2s. Swipe left = pass, right = shortlist, tap = detail (photos, menu, hours, booking). A map toggle (Explore) shows the same candidates spatially. |
-| 3b | Group match (opt-in, account-gated) | Host frames the night and invites partner or friends (2 to 10). Everyone swipes the same deck; unanimous rights surface as a match, otherwise a ranked-overlap leaderboard. Host locks the pick into the plan. |
+| 3b | Group match (opt-in, account-gated) | Host frames the night, invites partner or friends (2 to 10), and sets a close time. Everyone swipes the same deck on their own schedule; at the deadline the leaderboard ranks the overlap (unanimous picks highlighted) and the host locks the pick into the plan. |
 | 4 | Shortlist and decide | Review shortlisted cards side by side, pick the winner (or dinner + drinks pair). Booking actions per availability tier. Plan saved for offline. |
 | 5 | The date | Saved plan works offline. tel:, maps, and menu links function without our backend. |
 | 6 | Afterward | Next-open feedback (would repeat + mood chips). Swipes and feedback feed learning. After 3 completed plans, optional account offer. |
@@ -110,15 +112,15 @@ Numbered so we can reference them in the technical design and test plan. "Requir
 
 ### Stage 3b: Group match (account-gated, added v3)
 
-Flow diagram lives in technical-design.md section 6.5. Matching never replaces the solo/couple deck; it is an opt-in layer on top of it.
+Flow diagram lives in technical-design.md section 6.5. Matching never replaces the solo/couple deck; it is an opt-in layer on top of it. Fully async as of v5: no lobby, no simultaneity assumption; a host-set close time bounds every session.
 
 | ID | Scenario | Required MVP behavior |
 |----|----------|----------------------|
-| S41 | Create a match session | Host (account required) picks people from their friends list or generates a session join link, sets the area, tonight's story, and the date. A lobby shows who's in. Host taps start, which locks the roster (2 to 10). Swipes from outside the locked roster are rejected. |
-| S42 | Join a session | Deep link opens the app straight into the lobby (sign-in first if needed). A friend without an account signs up first; without the quiz done, they complete it before joining (their vetoes are needed). Without the app, the web landing page explains the alpha honestly (APK from the host) rather than dead-ending. |
-| S43 | Group deck | One deck for the whole roster, same order for everyone (session seed). Hard vetoes are unioned across all participants, budget ceiling is the lowest anyone set, host's area + story frame the ranking. Personal learning weights are NOT applied in group decks (fair and explainable). |
-| S44 | Match | When every roster member has swiped right on the same venue, it surfaces as a match ("It's a dinner"): live if the screen is open (session state polls every ~7s), next-open banner otherwise. Multiple matches can accumulate; swiping may continue. A match is immutable once surfaced: a later undo adjusts leaderboard counts but never revokes a celebrated match. |
-| S45 | Stragglers and no unanimity | Session shows progress ("4 of 6 have swiped"). The host can end the session at any time and gets the results view: matches first, then the leaderboard ranked by right-swipe count (fit score breaks ties). Sessions expire at the end of the planned night. |
+| S41 | Create a match session | Host (account required) picks people from their friends list or generates a session join link, sets the area, tonight's story, the planned night, and a close time (presets: 1h / 3h / this evening / 24h). The deck generates immediately from the host's frame plus invited participants' vetoes; swiping starts right away for anyone who's in. Rosters of 2 to 10; swipes accepted only from participants while the session is open. |
+| S42 | Join a session | Deep link opens the app straight into the session, any time before the deadline (sign-in first if needed). A friend without an account signs up first; without the quiz done, they complete it before swiping (their vetoes are needed). Without the app, the web landing page explains the alpha honestly (APK from the host) rather than dead-ending. |
+| S43 | Group deck | One deck, same order for everyone (session seed), generated at creation from the host's frame + invited participants' vetoes (lowest budget ceiling wins). A link-joiner's vetoes disqualify venues for everyone: the deck shrinks monotonically, never reorders or grows, and a venue violating ANY participant's vetoes cannot win even if it collected rights before they joined (those swipes are discarded, and the results view says so). Personal learning weights are NOT applied in group decks (fair and explainable). |
+| S44 | Results at close | At the deadline or host early-close, the session locks and results materialize: venues ranked by right-swipe count, blend fit as tie-break, unanimous picks (right-swiped by every actual swiper) highlighted at the top ("everyone said yes"). Participation shown honestly ("4 of 6 swiped"); non-swipers never count against a venue, and their vetoes still protect them. Results surface via next-open banner; the host shares the moment in the group's own text thread. |
+| S45 | Deadline mechanics | While open, the session screen shows live progress ("4 of 6 have swiped", polled ~7s). Close is evaluated on read, so results are exact to the minute without waiting on a cron. The host can close early once enough votes are in; swipes and undos are accepted freely until close and rejected after. Sessions with no locked pick expire after the planned night. |
 | S46 | Group veto pileup | S12 at scale: 8 people's dietary unions + the lowest budget ceiling can gut the deck. Honest count up front ("5 places work for all 8 of you"); relaxation offers touch only the host's area/radius. Vetoes never relax, not even one person's. |
 | S47 | Friends management | Add a friend via share link only (same pattern as partner invites): no username search, no contact upload, no suggestions. List and remove friends; block prevents rejoining your sessions and re-adding. |
 | S48 | The account gate | Tapping "Match with friends" from an anonymous state routes through account creation (Supabase Auth) with the existing local history migrating (S31 flow), then straight back into session creation. Both partners need accounts to match as a couple. The core solo/couple deck never requires an account. |
@@ -186,7 +188,7 @@ In the PRD but deliberately deferred, so the build doesn't sprawl:
 - **Booking completion tracking**: we hand off to partner booking flows with prefilled deep links (S52) and log the outbound tap; verifying that a reservation was actually completed requires partner-side integration that stays out of MVP.
 - **Event API integrations** (Ticketmaster/AXS): manual event-flag table in MVP, admin-entered for Bushnell/PeoplesBank/Trinity Health dates.
 - **iOS, public web app, Play Store listing, SMS**: all deferred to the launch-strategy conversation.
-- **Push notifications**: still deferred, but now the top fast-follow. Match sessions run on polling while the session screen is open plus next-open banners, which works for same-evening group decisions; push is what makes the match moment land when the app is closed.
+- **Push notifications**: still deferred, but now the top fast-follow. Async sessions surface progress and results via in-app polling and next-open banners; push is what would carry deadline reminders and results announcements to closed apps. Until then, the host's group text does that job.
 - **Group chat / messaging**: never in the prototype. The session link rides the group's existing text thread; the app's job is the decision, not the conversation. Zero free-text between users also keeps the moderation surface near zero.
 - **Friend search and discovery**: add-via-link only. No usernames to search, no contact upload, no "people you may know". (Swipe matching itself moved INTO MVP in v3; see Stage 3b.)
 - **ML-based learning**: deterministic scoring boosts only. Revisit when there's enough swipe + feedback data to matter.

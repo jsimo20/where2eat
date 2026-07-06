@@ -12,6 +12,8 @@ v3 decision (folded into PRD v2.3): group swipe matching in MVP: account-gated, 
 
 v4 decisions (folded into PRD v2.4): Explore map in MVP (pins over the deck pool, D10) and live reservation availability in MVP via demand-driven partner polling (D4). Partner API access is the MVP's one external dependency: applications at milestone 1, mock feed until credentials, manual + pattern tiers carry alpha regardless.
 
+v5 decision (folded into PRD v2.5): matching is fully async. No lobby; host sets a close time; everyone swipes on their own schedule; results materialize at close as a leaderboard (unanimity highlighted); late joiners' vetoes shrink the deck monotonically. No live match popups.
+
 ## Key files
 
 - `W2E_PRD_Hartford_Prototype.md`: the PRD (v2.3; version history in the doc header and git). Requirements source of truth. Stable filename on purpose: version bumps no longer rename the file.
@@ -33,7 +35,7 @@ Scenario IDs (S-numbers) and decision IDs (D-numbers) are the shared vocabulary;
 - Card copy is pre-authored per venue x archetype (D1). No LLM on the request path; p95 < 2s depends on this.
 - Vetoes (dietary, accessibility, budget ceiling) are hard filters: never scored, never relaxed, never overridable by user cuisine/drinks filters (S12, S36).
 - Decks are deterministic per session (seeded): every roster member sees the same order; match sessions run on this (S13, S43).
-- Group matching (D9): account-gated; lobby locks the roster at host start (2..10); match = unanimous right-swipes, evaluated server-side, immutable once surfaced; leaderboard by right-count is the fallback; only the host locks a pick into the plan. Roster vetoes union, lowest budget ceiling wins. Friends via invite link only; no chat, no search.
+- Group matching (D9, async as of v5): account-gated, rosters 2..10, host-set close time. Deck generated once at creation (host frame + invited vetoes, lowest ceiling); a link-joiner's vetoes shrink the deck monotonically, never reorder it. Results materialize at close (evaluated on read): leaderboard by right-count, fit tie-break, unanimity highlighted. Only the host locks a pick into the plan. Friends via invite link only; no chat, no search, no live match popups.
 - Anonymous-first: opaque UUID profiles server-side, zero PII pre-account (D3). No device fingerprinting. Location never leaves the device.
 - Availability tiers computed at read time from snapshot freshness (D4): pattern + manual writers always on, partner feeds demand-driven (refresh only what users are browsing) once access is granted. Never block a screen on an external call; stale "full" decays to Tier C after 60 min.
 - Explore map (D10) is a projection of the deck, not a second engine: pins show exactly the current candidate pool (vetoes + filters respected), and map actions are normal swipes.

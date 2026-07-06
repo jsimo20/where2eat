@@ -1,7 +1,7 @@
 # Where2Eat Product Requirements Document
 
-**Version 2.4 - Hartford Prototype**
-**Date: July 4, 2026** (v2.3, v2.2: July 4, 2026; v2.1: May 11, 2026)
+**Version 2.5 - Hartford Prototype**
+**Date: July 4, 2026** (v2.4, v2.3, v2.2: July 4, 2026; v2.1: May 11, 2026)
 
 > **v2.2 revision.** Three decisions supersede parts of v2.1 for the prototype:
 >
@@ -12,6 +12,8 @@
 > Amended sections: 1.1 (quiz Q5), 3 (core experience), 4 (coverage, menus), 5 (mode naming), Technical Requirements (platform, performance), Launch Strategy, Success Metrics. Companion design docs: `docs/customer-journeys.md`, `docs/technical-design.md`.
 
 > **v2.3 revision.** Group swipe matching added to MVP: account holders can run a match session with their partner or friends (rosters of 2 to 10) where everyone swipes the same deck; unanimous right-swipes surface as a match, a ranked-overlap leaderboard is the fallback, and the host locks the pick into the plan. Friends are added by invite link only. Accounts remain optional for the core solo/couple experience and are required for matching. New Section 3.6; amended Sections 1.3, User Account System, Data Governance, Success Metrics.
+
+> **v2.5 revision.** Group matching is now fully asynchronous: the lobby/roster-lock model is replaced by a host-set close time. Participants join and swipe on their own schedule before the deadline; results are computed at close as a ranked-overlap leaderboard with unanimous picks highlighted; a late joiner's vetoes remove venues from contention without reshuffling anyone's deck. Live mid-session match popups are dropped. Amended Sections 3.6 and Success Metrics.
 
 > **v2.4 revision.** Map/Explore mode and live reservation availability move into MVP. The map (Section 5) is a full-screen toggle showing exactly the deck's candidate pool as pins with a card carousel; ranking layers (routes, heatmaps) stay Phase 2. Live availability ships through the tier pipeline with demand-driven partner polling (new Section 4.2). Honest dependency, stated once: partner API access (OpenTable, Resy, Yelp Guest Manager, SevenRooms, Tock) is granted by those platforms, not built by us. Applications go out at build milestone 1, the software is partner-ready from day one, and manual + pattern tiers plus prefilled booking deep links carry the experience until access lands.
 
@@ -150,16 +152,15 @@ A screen that violates a rule needs a written reason.
 
 The v2.1 core experience (3 to 5 narrative multi-act itineraries with title, opening line, three acts, and a logistics footer) is deferred, not deleted. The blend, scoring, and pre-authored blurbs that power the deck are the same components multi-act assembly composes on top of; the design essence is preserved in `docs/technical-design.md` Appendix A and returns alongside Phase 3 orchestration.
 
-#### 3.6 Group Match (added v2.3)
+#### 3.6 Group Match (added v2.3, fully async as of v2.5)
 
-Account holders can turn the deck into a group decision:
+Account holders can turn the deck into a group decision. The whole flow is asynchronous: nobody needs to be on the app at the same time.
 
-- **Roster:** the host starts a match session with their partner or friends: 2 to 10 people, picked from a friends list or invited by share link. Friends are added by invite link only (no search, no contact upload).
-- **Lobby:** invitees land in a lobby, completing the quiz first if they haven't (their vetoes are needed). The host starts the session, which locks the roster.
-- **One deck, everyone swipes:** all participants swipe the same deck in the same order. Hard vetoes are unioned across the whole roster, the budget ceiling is the lowest anyone set, and the host frames the area and tonight's story.
-- **Match:** when every participant swipes right on the same venue, it surfaces as a match ("It's a dinner"). Multiple matches can accumulate; swiping can continue.
-- **Leaderboard fallback:** if nothing goes unanimous (likely in bigger groups), the host ends the session and gets a ranked overlap view: venues ordered by right-swipe count.
-- **Lock it in:** the host converts a match or leaderboard pick into the plan for the whole roster, party size prefilled. Large parties default to the call action, since reservation platforms rarely take 8-tops.
+- **Roster:** the host creates a match session with their partner or friends: 2 to 10 people, picked from a friends list or invited by share link. Friends are added by invite link only (no search, no contact upload).
+- **Time box:** the host sets a close time (presets: 1 hour, 3 hours, this evening, 24 hours). Everyone swipes whenever they can before the deadline; a progress view shows participation ("4 of 6 have swiped"). The host can close early once enough votes are in.
+- **One deck, everyone swipes:** the deck is generated at creation from the host's area + story and the invited participants' vetoes, with the lowest budget ceiling applied. Someone joining by link completes the quiz first if needed, and their vetoes remove venues from contention: the deck only ever shrinks, never reorders, and a venue that violates any participant's vetoes cannot win even if it collected right-swipes before they joined.
+- **Results at close:** at the deadline (or early close) the session locks and results appear for everyone: venues ranked by right-swipe count with blend fit as the tie-break, unanimous picks highlighted at the top ("everyone said yes"), participation shown honestly. Non-swipers never count against a venue; their vetoes still protect them.
+- **Lock it in:** the host converts a result into the plan for the whole roster, party size prefilled. Large parties default to the call action, since reservation platforms rarely take 8-tops.
 
 There is no group chat in the prototype and none planned: the session link rides the group's existing text thread. The app's job is the decision, not the conversation.
 
@@ -416,7 +417,7 @@ Budget and hiring plan are deferred until post-prototype.
 - **Short-term:** 60% monthly active retention after 3 months.
 - **Long-term:** Weekly active usage by core couples.
 - **Expansion:** 25% of active users engage with a non-restaurant pillar in Phase 3+.
-- **Match adoption (v2.3, proposed targets):** 30% of Phase 1 active users run or join at least one match session; 60% of started sessions end in a match or a locked leaderboard pick.
+- **Match adoption (v2.3, proposed targets):** 30% of Phase 1 active users run or join at least one match session; 60% of created sessions end in a locked pick before expiry.
 
 ### Operational Metrics
 
@@ -459,7 +460,7 @@ Budget and hiring plan are deferred until post-prototype.
 
 ---
 
-*Where2Eat v2.3 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars, alone, as a couple, or as a group. Monetization deferred until after prototype validation.*
+*Where2Eat v2.5 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars, alone, as a couple, or as a group. Monetization deferred until after prototype validation.*
 
 ---
 
