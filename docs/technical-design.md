@@ -1,7 +1,7 @@
 # Where2Eat: Technical Design (MVP)
 
-Covers Phase 0 alpha through Phase 1 of [the PRD](../W2E_PRD_Hartford_Prototype_v2.2.md) (v2.2: Android APK alpha, restaurants + bars only, swipe-deck UX, minimalist design).
-Scenario IDs (S1..S40) reference [customer-journeys.md](customer-journeys.md). Decision IDs (D1..D8) are stable across revisions.
+Covers Phase 0 alpha through Phase 1 of [the PRD](../W2E_PRD_Hartford_Prototype.md) (v2.3: Android APK alpha, restaurants + bars, swipe deck, group matching, minimalist design).
+Scenario IDs (S1..S48) reference [customer-journeys.md](customer-journeys.md). Decision IDs (D1..D9) are stable across revisions. v3 adds account-gated group swipe matching (rosters of 2 to 10) to MVP.
 
 ---
 
@@ -11,7 +11,7 @@ Scenario IDs (S1..S40) reference [customer-journeys.md](customer-journeys.md). D
 2. **p95 under 2s for deck generation.** Everything on the hot path is precomputed or in our own database.
 3. **Low cognitive load.** One decision per screen, progressive disclosure, two numbers max per card. Minimalism is a release gate, not a vibe.
 4. **Honest degradation.** No external API failure ever blocks the deck (S23, S26). The floor is always a phone number.
-5. **Anonymous-first with real pairing.** No account needed; async invites still work across devices (S2).
+5. **Anonymous-first core, account-gated social.** No account for the solo/couple experience; group matching (2 to 10 people) requires one (S48).
 6. **One developer can build and run it.** Managed services, no ops burden, sideload-friendly builds.
 7. **Multi-city ready, single-city built.** `city_id` on every content table; zero other speculative generality (YAGNI).
 
@@ -22,21 +22,21 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 ### D1. Card copy is pre-authored, not generated at request time (unchanged, repurposed)
 
 - **Decision:** Each venue carries editorially approved fragments per energy archetype ("why this place tonight" blurbs, with optional season/weather variants). Deck generation is deterministic assembly: filter, score, rank, attach the matching fragment and photos to each card.
-- **Why:** With 25 to 100 curated venues, authoring is tractable (Claude drafts in the admin tool, editor approves). Buys: p95 well under 2s (no LLM on the hot path), zero per-request inference cost, editorial voice control, offline-friendly output, deterministic same-night decks so both partners see the same order (S13, and the future couple-match feature depends on it).
+- **Why:** With 25 to 100 curated venues, authoring is tractable (Claude drafts in the admin tool, editor approves). Buys: p95 well under 2s (no LLM on the hot path), zero per-request inference cost, editorial voice control, offline-friendly output, deterministic same-order decks per session (S13; match sessions run on this).
 - **Rejected:** Per-request LLM generation. Latency and cost fight the 2s p95; request-time quality control contradicts the curated positioning.
 - **v2 note:** title seeds and opening lines (for 3-act stories) are no longer authored in MVP; only `why_tonight` blurbs. Multi-act rendering is deferred (Appendix A).
 
 ### D2. Expo (React Native) client + Next.js API/admin (revised in v2)
 
-- **Decision:** The user-facing client is an Expo (React Native, TypeScript) Android app. The Next.js app survives as the API layer and the web admin/curation tool, plus one public web page: the invite-landing quiz (S2). Shared zod schemas/types live in a shared workspace package.
+- **Decision:** The user-facing client is an Expo (React Native, TypeScript) Android app. The Next.js app survives as the API layer and the web admin/curation tool, plus public landing pages: the invite quiz (S2) and the session-join landing (S42). Shared zod schemas/types live in a shared workspace package.
 - **Why:** The swipe deck is the product. WebView wrappers (Capacitor, TWA) render gestures through the browser engine and get janky on mid-range Androids, exactly where a Tinder-feel dies. React Native drives native views with gesture handling on the UI thread (`react-native-gesture-handler` + `reanimated`), which is how the apps we're imitating actually feel. Expo makes APK builds and OTA updates one-command. React + TypeScript skills carry over from the web stack.
 - **Rejected:** Capacitor (one codebase, but compromises the core interaction), Flutter (new language for no gain here), pure native Kotlin (kills iOS reuse later and slows a one-dev team).
 - **Cost accepted:** two build targets (mobile client + web admin) in one monorepo.
 
-### D3. Minimal anonymous server profile (unchanged)
+### D3. Minimal anonymous server profile; accounts ship in MVP as the social gate (revised in v3)
 
-- **Decision:** An opaque UUID profile row is created server-side on first quiz submit. It holds quiz answers, veto answers, and couple membership. No name, email, phone, or location. Plans and history live on-device with a server copy for couple sync; the server keeps only what pairing, blending, and sync require. Account creation (S31) later attaches Supabase Auth to the same profile.
-- **Why:** Async invite (S2) and solo-partner-joins-later (S6) are impossible with purely on-device data. Smallest server footprint that makes pairing work; satisfies storage minimization and deletability (S33).
+- **Decision:** An opaque UUID profile row is created server-side on first quiz submit. It holds quiz answers, veto answers, and couple membership. No name, email, phone, or location. Plans and history live on-device with a server copy for couple sync; the server keeps only what pairing, blending, and sync require. Accounts (Supabase Auth) now ship in MVP because group matching requires them (D9, S48): signing up attaches auth + a display name to the same profile and migrates local history (S31). Account holders carry the product's only PII: auth email and display name.
+- **Why:** Async invite (S2) and solo-partner-joins-later (S6) are impossible with purely on-device data; friends lists and cross-device match sessions are impossible without durable identity. The anonymous core stays anonymous; PII arrives only when the user opts into the social layer, and export/delete covers all of it (S33).
 
 ### D4. Availability is a provider abstraction with tiers computed at read time (unchanged)
 
@@ -47,10 +47,10 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 
 - Was: precompute drive/walk times between venues for act chaining. Deferred with multi-act itineraries (Appendix A). Distance shown on cards is user-to-venue, computed client-side from device location (if granted) or neighborhood centroid, never sent to the server.
 
-### D6. Deterministic learning, no ML (unchanged, extended)
+### D6. Deterministic learning, no ML (revised in v3: swipe nudges follow the swiper)
 
-- **Decision:** Explicit feedback (S27) writes strong boosts; swipes write weak ones (S29). Right swipe nudges the venue's attribute tags up for the couple, left nudges down, small weights, feedback dominates. All weights visible in the admin tool.
-- **Why:** At 5 to 100 couples there is no training data. Rules are debuggable and explainable ("because you loved X"). Swipes give the learning loop volume that feedback alone never had.
+- **Decision:** Explicit feedback (S27) writes strong boosts at the couple level; swipes write weak nudges keyed to the individual swiper's profile (S29). Couple/solo decks combine the relevant profiles' affinities; group decks apply no personal weights at all (S43). Small weights, feedback dominates, everything visible in the admin tool.
+- **Why:** At 5 to 100 couples there is no training data, and rules stay debuggable and explainable ("because you loved X"). Swipes now have individual identity (match sessions require it), so tastes accrue to the person: your friend group's session doesn't pollute your date-night profile, and group decks stay fair and identical for everyone.
 
 ### D7. Sideloaded APK with OTA updates (new in v2)
 
@@ -63,6 +63,12 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 - **Decision:** `generateDeck(blend, story, filters, context)` returns up to ~30 ranked venue cards. The old pipeline survives intact up through scoring; what changed is the output shape (ranked cards, not assembled 3-act stories) and one new input (user filters, S36).
 - **Why:** Locks the UI the PM wants to validate while preserving the engine investment. When multi-act itineraries return, they compose on top of the same filter/score core.
 
+### D9. Group matching: lobby model, unanimous match, leaderboard fallback (new in v3)
+
+- **Decision:** A match session is host-created and account-gated. Invitees gather in a lobby (from the friends list or a share link); the host starts the session, which locks the roster (2 to 10). Everyone swipes the same seeded deck; the server evaluates on every swipe ingest, and a venue with a right-swipe from every locked participant surfaces as a match. Matches are immutable once surfaced (a later undo adjusts counts, never revokes the celebration). If nothing goes unanimous, the host ends the session and gets a leaderboard ranked by right-swipe count with fit score as tie-break. Only the host converts a match or leaderboard pick into the plan. Friends are added by invite link only; there is no chat, no search, no contact upload.
+- **Why each piece:** the lobby lock kills every join-after-match consistency bug in one move. Unanimity is the only match rule that needs no explanation and no arguing; the leaderboard is the honest outcome for rosters of 6+, where unanimity gets rare. Host authority means one person books (a table for 8 doesn't need a committee). Link-only friends and zero free-text keep the abuse/moderation surface near nil at alpha scale.
+- **Rejected:** majority-vote thresholds (arbitrary and argues with itself), live-only synchronous sessions (friends trickle in over an hour), client-computed matches (match logic belongs inside the trust boundary), group chat (the group already has one; it's called their text thread).
+
 ## 3. Stack
 
 | Layer | Choice | Why it fits |
@@ -73,7 +79,9 @@ Short ADR format: decision, why, alternative rejected. Revision status marked pe
 | Mobile styling | NativeWind (Tailwind syntax for RN) + custom design tokens | Keeps the Tailwind mental model across web admin and app; tokens enforce the minimalist system (section 9). |
 | Local storage | MMKV (key-value) + expo-image cache | Profile pointer, saved plans, shortlist, offline cache (S25). MMKV is the fast RN-standard store. |
 | API + admin | Next.js 15+ (App Router, TypeScript) on Vercel | API routes for the app, web admin for curation, invite-landing quiz page (S2). |
-| Database | Postgres (Supabase) | Relational fits the model; Supabase bundles auth (Phase 1 accounts) and storage. |
+| Database | Postgres (Supabase) | Relational fits the model; Supabase bundles auth and storage. |
+| Auth | Supabase Auth (MVP) | Group matching is account-gated (D9); anonymous UUID profiles link to the account on signup. Vetted library, never roll our own (house rule). |
+| Deep links | expo-linking + Android App Links | Friend and session invites open straight into the lobby (S42). |
 | ORM | Drizzle | Type-safe schema in TypeScript; schemas shared with the client via the monorepo package. |
 | Cache / rate limit | Upstash Redis + @upstash/ratelimit | Availability snapshots, weather cache, day-one rate limiting (PRD requirement). |
 | Weather | NWS API (api.weather.gov) | Free, no key, US government, hourly forecast for the Hartford grid. Open-Meteo fallback. |
@@ -91,14 +99,15 @@ Dropped from v1: Serwist/PWA (replaced by the native app), Radix (web-only; admi
 flowchart TB
     subgraph Client["Android app: Expo / React Native"]
         DECK[Swipe deck: cards, filters, detail sheet]
+        MATCH[Match sessions: friends, lobby, progress poll, results]
         PLANS[Shortlist + plans, offline via MMKV + image cache]
         OTA[expo-updates OTA channel]
     end
 
     subgraph Web["Next.js on Vercel"]
         RL[Rate limit middleware]
-        API[API routes: profiles, quiz, couples, invites, blends, decks, swipes, plans, feedback, flags, export]
-        INV[Invite-landing web quiz]
+        API[API routes: profiles, quiz, couples, invites, blends, decks, swipes, sessions, friends, plans, feedback, flags, export]
+        INV[Invite landing pages: partner quiz, session join]
         ADM[Admin: venue CRUD, fragment authoring, photo picks, overrides, event flags, flag queue, learning inspector]
     end
 
@@ -122,7 +131,7 @@ flowchart TB
         MP[Maps deep links + in-app menu browser]
     end
 
-    DECK & PLANS --> RL
+    DECK & MATCH & PLANS --> RL
     INV --> RL
     RL --> API
     API --> PG & RD
@@ -147,11 +156,17 @@ erDiagram
     COUPLES ||--o{ INVITES : issues
     PROFILES }o--o{ COUPLES : members
     COUPLES ||--o{ BLENDS : computes
-    COUPLES ||--o{ SWIPE_SESSIONS : opens
-    SWIPE_SESSIONS ||--o{ SWIPES : records
+    SESSIONS ||--o{ SWIPES : records
+    PROFILES ||--o{ SWIPES : casts
     VENUES ||--o{ SWIPES : targets
+    SESSIONS ||--o{ SESSION_PARTICIPANTS : seats
+    USERS ||--o{ SESSION_PARTICIPANTS : joins
+    SESSIONS ||--o{ MATCHES : surfaces
+    USERS ||--o{ FRIENDSHIPS : links
     COUPLES ||--o{ PLANS : makes
+    SESSIONS ||--o| PLANS : locks
     PLANS ||--o| FEEDBACK : receives
+    PROFILES ||--o| PROFILE_AFFINITIES : accumulates
     COUPLES ||--o| COUPLE_LEARNING : accumulates
     CITIES ||--o{ EVENTS_LOCAL : hosts
     USERS ||--o{ PROFILES : claims
@@ -167,18 +182,23 @@ Tables and load-bearing columns (Drizzle schema will be the source of truth; thi
 - **couples**: `id, profile_a_id, profile_b_id (nullable), mode (pass_phone|async|solo), created_at`.
 - **invites**: `id, couple_id, token (unique), status (pending|accepted|expired|revoked), expires_at, created_at`. 48h expiry via J3 (S3, S4).
 - **blends**: `id, couple_id, version, vetoes (jsonb), soft (jsonb), rotation (jsonb: next_primacy), score (0..100), summary, computed_at`. Append-only for auditability.
-- **swipe_sessions**: `id, couple_id, city_id, story_input (jsonb: archetype, filters, party_size), seed, created_at`. The seed makes the deck deterministic and replayable (S13).
-- **swipes**: `id, session_id, venue_id, direction (left|right|undo), position, created_at`. First-party product data: powers dedupe (S17), learning (S29), and the future couple-match. No dwell-time or other surveillance-shaped fields.
-- **plans**: `id, couple_id, venue_ids[] (one, or dinner + drinks pair), planned_for (date), party_size, solo_planned (bool), status (saved|completed_presumed|completed_confirmed|abandoned), snapshot (jsonb: rendered cards at save time), created_at`. The snapshot keeps a saved plan immutable even if venue data changes later (S25).
-- **feedback**: `id, plan_id, would_repeat (bool, nullable), moods[], created_at` (S27).
-- **couple_learning**: `couple_id, venue_boosts (jsonb), attribute_affinities (jsonb), updated_at` (D6).
+- **sessions**: `id, kind (solo|couple|match), couple_id (nullable), host_user_id (nullable), city_id, story_input (jsonb: archetype, filters, area, party_size), seed, status (open|started|ended|expired), planned_for, created_at`. One table for every swiping context; the seed makes each deck deterministic and replayable (S13, S43). Match sessions follow the lobby lifecycle (D9) and expire at the end of the planned night (S45).
+- **session_participants**: `session_id, user_id, state (invited|joined), joined_at`. Locked at host start; swipes from outside the locked roster are rejected (S41).
+- **matches**: `id, session_id, venue_id, matched_at`. One row per unanimous venue, immutable once surfaced (S44); the host locks one into the plan.
+- **friendships**: `id, user_low_id, user_high_id, status (active|blocked), blocked_by (nullable), created_at`. Created only via accepted invite links; canonical low/high ordering prevents duplicate pairs (S47).
+- **friend_invites**: `id, inviter_user_id, token (unique), status, expires_at, created_at`. Same share-sheet pattern as partner invites.
+- **swipes**: `id, session_id, profile_id, venue_id, direction (left|right|undo), position, created_at`. Carries the swiper: match evaluation runs on ingest, and learning nudges accrue to the individual (D6, D9). Powers dedupe (S17) too. No dwell-time or other surveillance-shaped fields.
+- **plans**: `id, couple_id (nullable), session_id (nullable), venue_ids[] (one, or dinner + drinks pair), planned_for (date), party_size, solo_planned (bool), status (saved|completed_presumed|completed_confirmed|abandoned), snapshot (jsonb: rendered cards at save time), created_at`. Group plans come from a locked match session with party size prefilled from the roster; the snapshot keeps a saved plan immutable even if venue data changes later (S25).
+- **feedback**: `id, plan_id, profile_id, would_repeat (bool, nullable), moods[], created_at` (S27). Group plans prompt every participant; each answer feeds that person's own learning.
+- **profile_affinities**: `profile_id, attribute_affinities (jsonb), updated_at`. Swipe nudges accrue to the swiper (D6).
+- **couple_learning**: `couple_id, venue_boosts (jsonb), updated_at`. Feedback boosts stay couple-level (D6).
 - **availability_snapshots**: `id, venue_id, source (partner|manual|pattern), status, slot_at, party_size, observed_at`. Redis hot copy, Postgres history.
 - **events_local**: `id, city_id, date, name, area (bushnell|peoplesbank|trinity_health|other), start_time, expected_impact` (S16).
 - **content_flags**: `id, subject_type, subject_id, reason, status, created_at` (S34).
-- **users** (Phase 1+): Supabase auth row; `profiles.user_id` nullable FK when accounts land (S31).
+- **users** (MVP): Supabase Auth row + `display_name` (shown in lobbies and friends lists; the only PII besides the auth email); `profiles.user_id` nullable FK links the anonymous history on signup (S31, S48).
 - **metrics_daily**: `date, metric, value`. Aggregate-only counters.
 
-Dropped from v1: `itineraries`, `itinerary_acts`, `venue_distances` (deferred with multi-act, Appendix A).
+Dropped from v1: `itineraries`, `itinerary_acts`, `venue_distances` (deferred with multi-act, Appendix A). Renamed in v3: `swipe_sessions` generalized to `sessions` + `session_participants`.
 
 ## 6. Core flows
 
@@ -237,7 +257,7 @@ Scoring (deterministic, tunable weights in config):
 | Learning | -10..+10 | Feedback boosts strong, swipe nudges weak (S29) |
 | Novelty | -5..+5 | Recently-passed venues down-ranked; sign flips for "low-key & familiar" (S17) |
 
-The card's displayed **fit score** is the total normalized to a percentage. Tie-breaks and the diversity shuffle use a seed of `couple_id + date`, so both partners see the same deck order all evening (S13), which the future couple-match feature depends on.
+The card's displayed **fit score** is the total normalized to a percentage. Tie-breaks and the diversity shuffle use the session seed, so everyone in a session sees the same deck order (S13, S43): the mechanism match sessions run on. Group decks (kind = match) skip the learning and rotation components and score from the host's story + area frame, roster-unioned vetoes, and venue quality (D9).
 
 ### 6.3 Swipe session (S35, S37, S38)
 
@@ -274,6 +294,25 @@ flowchart TD
 ```
 
 Tier is computed at read time from data freshness, never stored as a fact about the venue. MVP reality: Tier C most of the time, B/A only via manual override (alpha) or a future partner feed.
+
+### 6.5 Group match session (S41..S48): new in v3
+
+```mermaid
+flowchart TD
+    A["Host creates session: roster from friends list or share link, area + story + date, account required"] --> B["Lobby: joiners appear; quiz completion required to join (vetoes needed)"]
+    B --> C{Host starts}
+    C --> D["Roster locked (2..10). Deck generated: vetoes unioned across roster, lowest budget ceiling, host's area + story, session seed"]
+    D --> E[Everyone swipes the same deck independently]
+    E --> F{Server, on each swipe ingest: venue right-swiped by all locked participants?}
+    F -->|Yes| G["Match surfaced: 'It's a dinner'. Live popup if screen open (state poll ~7s), banner on next open. Immutable once surfaced; keep swiping or lock it in"]
+    F -->|No| E
+    G --> I
+    E --> H{Host ends, deck exhausted for all, or planned night arrives}
+    H --> I["Results: matches first, then leaderboard by right-swipe count, fit score breaks ties"]
+    I --> J["Host locks a pick -> plan for the roster, party size prefilled; large parties default to the call action"]
+```
+
+Match evaluation is server-side only (trust boundary): `matched(venue) := every locked participant's latest swipe on venue is right`. An undo before a match is surfaced removes the right; after surfacing, the match row is immutable and only leaderboard counts move (S44). Clients poll `GET /api/sessions/:id` (~7s) while the session screen is open; there is no push in MVP, so closed-app participants catch up via next-open banners (top fast-follow: expo-notifications).
 
 ## 7. Blend engine (PRD 2.1, S9..S12): unchanged from v1
 
@@ -325,7 +364,12 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 | `POST /api/invites` / `GET /api/invites/:token` / `POST /api/invites/:token/accept` | Async pairing lifecycle; GET serves the web quiz page (S2..S4) |
 | `POST /api/blends/compute` | Recompute blend (also server-triggered on quiz submit) |
 | `POST /api/decks/generate` | The hot path: story + filters in, ranked card deck out |
-| `POST /api/swipes` | Batched swipe events (fire-and-forget from client queue) |
+| `POST /api/swipes` | Batched swipe events (fire-and-forget from client queue); carries swiper identity, triggers match evaluation for match sessions |
+| `POST /api/friends/invites` / `POST /api/friends/invites/:token/accept` | Add-friend-via-link lifecycle (S47) |
+| `GET /api/friends` / `DELETE /api/friends/:id` / `POST /api/friends/:id/block` | Friends list, remove, block (S47) |
+| `POST /api/sessions` / `POST /api/sessions/:token/join` / `POST /api/sessions/:id/start` | Match session lifecycle: create with roster/area/story, join lobby, host-start locks roster (S41, S42) |
+| `GET /api/sessions/:id` | Session state: roster, progress, matches, leaderboard. Polled ~7s while the session screen is open (S44, S45) |
+| `POST /api/sessions/:id/lock` | Host-only: convert a match or leaderboard pick into the plan (D9) |
 | `POST /api/plans` / `GET /api/plans` | Create from shortlist pick; list for couple sync (S38) |
 | `POST /api/plans/:id/feedback` | Would-repeat + moods (S27), accepts offline replays |
 | `GET /api/venues/:id` | Detail-sheet payload |
@@ -357,7 +401,9 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 
 ### Security and data governance
 - Anonymous UUIDs, no PII server-side pre-account (D3). Device location, if granted, is used on-device for distance display only and never sent to the server.
-- Rate limiting from day one; zod at every boundary; sanitized errors; fail closed on auth errors.
+- Account holders carry the product's only PII: auth email (Supabase) and display name (shown in lobbies and friends lists). Export and delete cover both, plus friendships, sessions, and swipes (S33). Friends are added by link, never by contact upload; the server never sees an address book.
+- Every session and friend action is authorization-checked server-side: roster membership on swipe ingest, host identity on start/end/lock, friendship status on session invites. Blocked users cannot rejoin or re-add (S47).
+- Rate limiting from day one; zod at every boundary; sanitized errors; fail closed on auth errors. Social caps: rosters of 10, friend-invite issuance throttled per user, session join tokens dead after roster lock.
 - Secrets in env vars only; `.env.example` committed, `.env` and `*.jks` (signing keystore) gitignored; gitleaks pre-commit hook when the repo initializes.
 - APK signing keystore backed up outside the repo (losing it means testers reinstall from scratch).
 
@@ -378,6 +424,7 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 - **Blend engine:** table-driven unit tests: veto unions, budget min, all 20 divergent archetype pairs, rotation advancement, solo recompute (S6, S8..S12).
 - **Deck engine:** fixture city of ~15 synthetic venues (restaurants + bars); tests for scoring, filter stacking (filters never bypass vetoes), determinism (same seed, same deck), relax ladder order, thin-deck path, novelty decay (S12..S17, S36, S37).
 - **Availability tiers:** freshness-boundary tests (4:59 vs 5:01 vs 60:01) and outage degradation (S19..S23).
+- **Match engine:** table-driven: unanimity detected on the Nth right, undo before vs after surfacing, non-roster swipe rejected, multiple matches, leaderboard order + fit tie-break, host-only start/end/lock, roster caps at 2 and 10, group veto union + lowest ceiling (S41..S48).
 - **Mobile e2e (Maestro):** onboarding modes, swipe-shortlist-plan happy path, undo, filter apply/clear, airplane-mode plan reading, feedback replay on reconnect (S1, S5, S25, S27, S35..S38).
 - **Admin e2e (Playwright):** venue CRUD with required alt text and menu_url, blurb approve flow.
 - **A11y:** eslint a11y rules in CI + manual TalkBack pass per release (the gate).
@@ -399,8 +446,12 @@ All routes rate-limited (Upstash sliding window per IP + profile UUID). zod vali
 4. **Detail, shortlist, plans:** detail sheet (gallery, menu in-app browser, booking deep links), shortlist compare, plan creation, offline snapshot.
 5. **Availability + feedback:** provider abstraction (manual + pattern), tier badges and D-swap ranking, feedback prompt, learning weights.
 6. **Pairing + polish:** async invite lifecycle with 48h sweep, metrics counters, TalkBack pass, OTA channel setup, alpha install on both phones.
+7. **Accounts + friends:** Supabase Auth, anonymous-history migration on signup, display names, add-friend-via-link, remove/block, export/delete extended to social data.
+8. **Match sessions:** lobby + roster lock, group deck rules (veto union, lowest ceiling, host frame), match engine + results leaderboard, session deep links, state polling, plan handoff. First group test: James + spouse + friends.
 
-Phase 1 adds: 100-venue catalog + blurbs, account creation (Supabase Auth) with local-data migration, export/delete, beta-couple APK distribution.
+The couple alpha can ship after milestone 6; matching (7 and 8) lands right behind it. That sequencing keeps the core loop validating on real date nights while the social layer is built.
+
+Phase 1 adds: 100-venue catalog + blurbs, beta-couple and friend-group APK distribution.
 
 ## 15. Open questions and risks
 
@@ -412,7 +463,9 @@ Phase 1 adds: 100-venue catalog + blurbs, account creation (Supabase Auth) with 
 6. **Yelp Fusion pricing**: Yelp has been moving Fusion toward paid plans. Load is tiny (one match call per venue, ~100 refresh calls nightly), but confirm tier and cost before milestone 1; fallback is the manual curation-time check.
 7. **EAS build quotas**: free tier has monthly build limits; local Gradle builds are the pressure valve. Decide at milestone 1.
 8. **Weather-radius interaction** (S15): shipped as a scoring nudge, not a hard cut. Validate in a real Hartford winter.
-9. **Couple swipe-matching**: deliberately deferred, but deck determinism (S13) and plan sync (S38) were designed so it bolts on. Revisit after the solo swipe loop feels right.
+9. **Match rule at large rosters**: unanimity gets rare as rosters grow; at 6+ the leaderboard is probably the real product and the match moment is a bonus. Validate with the first friend-group test before investing in match-moment polish.
+10. **Notification gap**: no push in MVP, so matching runs on ~7s polling while the session screen is open plus next-open banners. Workable for same-evening decisions; if sessions stall waiting on closed-app friends, expo-notifications is the first fast-follow.
+11. **Group booking reality**: parties of 7+ often can't book via OpenTable/Resy deep links at all. The plan screen defaults large rosters to the call action; worth validating how that feels.
 
 ---
 

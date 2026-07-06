@@ -1,11 +1,13 @@
 # Where2Eat: Customer Journeys and MVP Scenario Catalog
 
-Companion to [W2E_PRD_Hartford_Prototype_v2.2.md](../W2E_PRD_Hartford_Prototype_v2.2.md).
+Companion to [the PRD](../W2E_PRD_Hartford_Prototype.md) (v2.3).
 Defines the journey stages, the probable scenarios the MVP must handle, spec gaps found in the PRD (with proposed resolutions), and the scope lines.
 
 **Revision note (v2):** this version reflects three PM decisions, since folded into PRD v2.2: (1) Android app distributed by sideloaded APK for alpha testing, web deferred; (2) scope limited to restaurants and bars, multi-act narrative itineraries deferred; (3) core UX is a swipe deck (Tinder/Hinge-style cards) with photo-forward venue cards, fit scores, menu access, and cuisine/drinks filters, under a minimalist low-cognitive-load design goal.
 
 **MVP definition used throughout:** Phase 0 closed alpha through Phase 1. Android app (Expo/React Native), sideloaded APK, 25 then 100 curated venues (restaurants and bars), swipe-deck UX. Launch/deployment strategy deliberately deferred until the alpha experience is satisfactory.
+
+**v3 addendum:** group swipe matching is now in MVP (PRD v2.3): account holders can run a match session with their partner or friends, rosters of 2 to 10, everyone swiping the same deck, unanimous right-swipes surfacing as a match with a ranked-overlap leaderboard as the fallback. Accounts (Supabase Auth) move into MVP scope to gate it; the core solo/couple experience stays anonymous.
 
 ---
 
@@ -19,6 +21,7 @@ Seven stages. Every scenario below hangs off one of these.
 | 1 | Onboarding | 5-question quiz plus a hard-requirements step, via one of three pairing modes (pass-the-phone, async invite, solo). |
 | 2 | Blend | Vetoes unioned, soft preferences blended or rotated, summary + compatibility score shown. |
 | 3 | Browse the deck | User picks tonight's story (energy state) and optional filters (cuisine, drinks). A ranked deck of venue cards comes back in under 2s. Swipe left = pass, right = shortlist, tap = detail (photos, menu, hours, booking). |
+| 3b | Group match (opt-in, account-gated) | Host frames the night and invites partner or friends (2 to 10). Everyone swipes the same deck; unanimous rights surface as a match, otherwise a ranked-overlap leaderboard. Host locks the pick into the plan. |
 | 4 | Shortlist and decide | Review shortlisted cards side by side, pick the winner (or dinner + drinks pair). Booking actions per availability tier. Plan saved for offline. |
 | 5 | The date | Saved plan works offline. tel:, maps, and menu links function without our backend. |
 | 6 | Afterward | Next-open feedback (would repeat + mood chips). Swipes and feedback feed learning. After 3 completed plans, optional account offer. |
@@ -89,7 +92,7 @@ Numbered so we can reference them in the technical design and test plan. "Requir
 
 | ID | Scenario | Required MVP behavior |
 |----|----------|----------------------|
-| S13 | Standard deck generation | Story + optional filters in, ranked deck (up to ~30 cards) out, p95 under 2s. Deterministic per couple per night: both partners see the same deck order on the same evening. |
+| S13 | Standard deck generation | Story + optional filters in, ranked deck (up to ~30 cards) out, p95 under 2s. Deterministic per session (seeded): everyone browsing the same session sees the same deck in the same order. |
 | S14 | Thin inventory night | Sunday/Monday/holiday in Hartford: fewer venues open. Small deck shown with an honest count ("7 places open tonight that fit"), plus the widen prompt. Never pad with venues that violate the blend. |
 | S15 | Bad weather | Rain or nor'easter: patio-dependent venues down-ranked or badged, weather-variant card blurbs used, snow-day bias toward shorter drives. |
 | S16 | Event night | Bushnell show / Wolf Pack / UConn game night (manual event flags in MVP): downtown cards carry a parking-pressure warning and pre-show timing note. |
@@ -100,6 +103,21 @@ Numbered so we can reference them in the technical design and test plan. "Requir
 | S37 | Deck exhaustion | Swiped through everything: end card summarizes ("You passed on 18, shortlisted 3"), offers shortlist review, filter widening, or radius expansion. Never an infinite feed of junk; scarcity is honest here. |
 | S39 | Menu access | One tap from card detail opens the venue's curated menu URL in an in-app browser. Venues without a stable menu URL fall back to website, then tel:. Menu coverage is a curation requirement for the top 100. |
 | S40 | Photos | 3 to 5 photos per venue, full-bleed on cards. Next 3 cards' images prefetched so swiping never shows a spinner. Blurhash placeholder on slow connections. Source attribution rendered where licensing requires it. |
+
+### Stage 3b: Group match (account-gated, added v3)
+
+Flow diagram lives in technical-design.md section 6.5. Matching never replaces the solo/couple deck; it is an opt-in layer on top of it.
+
+| ID | Scenario | Required MVP behavior |
+|----|----------|----------------------|
+| S41 | Create a match session | Host (account required) picks people from their friends list or generates a session join link, sets the area, tonight's story, and the date. A lobby shows who's in. Host taps start, which locks the roster (2 to 10). Swipes from outside the locked roster are rejected. |
+| S42 | Join a session | Deep link opens the app straight into the lobby (sign-in first if needed). A friend without an account signs up first; without the quiz done, they complete it before joining (their vetoes are needed). Without the app, the web landing page explains the alpha honestly (APK from the host) rather than dead-ending. |
+| S43 | Group deck | One deck for the whole roster, same order for everyone (session seed). Hard vetoes are unioned across all participants, budget ceiling is the lowest anyone set, host's area + story frame the ranking. Personal learning weights are NOT applied in group decks (fair and explainable). |
+| S44 | Match | When every roster member has swiped right on the same venue, it surfaces as a match ("It's a dinner"): live if the screen is open (session state polls every ~7s), next-open banner otherwise. Multiple matches can accumulate; swiping may continue. A match is immutable once surfaced: a later undo adjusts leaderboard counts but never revokes a celebrated match. |
+| S45 | Stragglers and no unanimity | Session shows progress ("4 of 6 have swiped"). The host can end the session at any time and gets the results view: matches first, then the leaderboard ranked by right-swipe count (fit score breaks ties). Sessions expire at the end of the planned night. |
+| S46 | Group veto pileup | S12 at scale: 8 people's dietary unions + the lowest budget ceiling can gut the deck. Honest count up front ("5 places work for all 8 of you"); relaxation offers touch only the host's area/radius. Vetoes never relax, not even one person's. |
+| S47 | Friends management | Add a friend via share link only (same pattern as partner invites): no username search, no contact upload, no suggestions. List and remove friends; block prevents rejoining your sessions and re-adding. |
+| S48 | The account gate | Tapping "Match with friends" from an anonymous state routes through account creation (Supabase Auth) with the existing local history migrating (S31 flow), then straight back into session creation. Both partners need accounts to match as a couple. The core solo/couple deck never requires an account. |
 
 ### Stage 4: Shortlist, decide, book
 
@@ -127,10 +145,10 @@ Numbered so we can reference them in the technical design and test plan. "Requir
 | S27 | Feedback prompt | Next open on or after the morning after the planned date: "Would repeat?" + mood descriptor chips. One tap to dismiss, never nags twice for the same plan. |
 | S28 | Feedback skipped | Plan marked completed-unconfirmed. Still counts toward the account-offer counter. No learning update from feedback (swipe signals still count). |
 | S29 | Learning applied | Explicit feedback is the strongest signal: would-repeat = yes boosts that venue and its attributes for this couple. Swipes are weak signals: rights nudge attribute affinities up, lefts nudge down, with small weights (a pass can mean "ate there yesterday", not "hate it"). Next session visibly reflects it ("because you loved X"). Deterministic rules, no ML in MVP. |
-| S30 | Account offer at 3 completions | Optional, dismissible, additive (sync + portability pitch). Declining changes nothing (PRD: guest mode is full functionality). |
+| S30 | Account offer at 3 completions | Optional, dismissible, additive (sync + portability pitch). Declining changes nothing (PRD: guest mode is full functionality). Group matching is the second, stronger account trigger (S48). |
 | S31 | Account created | Local profile, quizzes, couple link, history migrate to the account. Second device signs in and syncs. |
 | S32 | Cleared storage / new device, no account | Cold start with honest messaging: "no account means this device starts fresh". This IS the sync value prop; never guilt-trip. |
-| S33 | Data export / delete | Export preference data + history as JSON. Delete wipes server-side anonymous records and instructs on clearing local data. GDPR-style even for US users. |
+| S33 | Data export / delete | Export preference data + history as JSON. Delete wipes server-side anonymous records and instructs on clearing local data. GDPR-style even for US users. For account holders, export and delete cover friends list, sessions, swipes, and display name too. |
 | S34 | Content flag | Any venue description, photo, or fragment can be flagged; flags queue for admin review (PRD community moderation). |
 
 ---
@@ -149,6 +167,7 @@ Items 1 to 6 are ambiguities found in the PRD. Items 7 to 10 were deliberate dev
 8. **Core experience (PRD section 3 says 3 to 5 narrative itineraries).** v2 decision: swipe deck of individual venue cards. Pre-authored narrative fragments survive as card blurbs; multi-act assembly is deferred (see scope cuts). PRD section 3 was rewritten in v2.2.
 9. **Evening structure question (quiz Q5).** With restaurants + bars only, the PRD's options (dinner + live music / + show / + late-night) can't be honored. Resolution: Q5 narrows to dinner only / dinner then drinks / drinks then dinner / just drinks. Original options return with Phase 3 orchestration.
 10. **Scores on cards.** "Most accurate score" = two numbers max per card for cognitive load: the Google+Yelp count-weighted rating and a blend-fit percentage (from deck scoring). Couple compatibility score stays on the blend screen only.
+11. **Accounts (PRD 1.3 said "never required").** v3: still true for the core solo/couple experience. Group matching is account-gated because friends lists, display names, and cross-device sessions cannot hang off an anonymous device UUID. Framed as additive social value, consistent with the PRD's value-exchange stance; folded into PRD v2.3. Consequence: accounts (Supabase Auth) move from Phase 1 into MVP build scope.
 
 ---
 
@@ -160,7 +179,9 @@ In the PRD but deliberately deferred, so the build doesn't sprawl:
 - **Explore/map mode**: Phase 2 per launch strategy. MVP is the deck only. No map SDK dependency at all in MVP.
 - **Live partner availability (Tier A)**: requires OpenTable/Resy partnership that a prototype won't get. Tier framework ships in MVP; A activates when a partnership lands.
 - **Event API integrations** (Ticketmaster/AXS): manual event-flag table in MVP, admin-entered for Bushnell/PeoplesBank/Trinity Health dates.
-- **iOS, public web app, Play Store listing, push notifications, SMS**: all deferred to the launch-strategy conversation. Notifications are in-app banners on next open.
-- **Couple swipe-matching** (both partners swipe independently, agreement surfaces as "it's a date"): the obvious Hinge-mechanic extension of the blend, and probably the killer feature. Deliberately post-MVP; the deck determinism (S13) and couple sync (S38) are designed so it can be added without rework.
+- **iOS, public web app, Play Store listing, SMS**: all deferred to the launch-strategy conversation.
+- **Push notifications**: still deferred, but now the top fast-follow. Match sessions run on polling while the session screen is open plus next-open banners, which works for same-evening group decisions; push is what makes the match moment land when the app is closed.
+- **Group chat / messaging**: never in the prototype. The session link rides the group's existing text thread; the app's job is the decision, not the conversation. Zero free-text between users also keeps the moderation surface near zero.
+- **Friend search and discovery**: add-via-link only. No usernames to search, no contact upload, no "people you may know". (Swipe matching itself moved INTO MVP in v3; see Stage 3b.)
 - **ML-based learning**: deterministic scoring boosts only. Revisit when there's enough swipe + feedback data to matter.
 - **Review sentiment analysis (Tier 2)**: Google + Yelp rating/review-count snapshots at curation time are enough for 100 hand-picked venues. TripAdvisor stays out.

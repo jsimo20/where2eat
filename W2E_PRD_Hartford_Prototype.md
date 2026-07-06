@@ -1,7 +1,7 @@
 # Where2Eat Product Requirements Document
 
-**Version 2.2 - Hartford Prototype**
-**Date: July 4, 2026** (v2.1: May 11, 2026)
+**Version 2.3 - Hartford Prototype**
+**Date: July 4, 2026** (v2.2: July 4, 2026; v2.1: May 11, 2026)
 
 > **v2.2 revision.** Three decisions supersede parts of v2.1 for the prototype:
 >
@@ -10,6 +10,8 @@
 > 3. **Core UX:** a swipe deck of photo-forward venue cards (Tinder/Hinge-style) with fit scores, one-tap menus, cuisine/drinks filters, and a minimalist low-cognitive-load design standard.
 >
 > Amended sections: 1.1 (quiz Q5), 3 (core experience), 4 (coverage, menus), 5 (mode naming), Technical Requirements (platform, performance), Launch Strategy, Success Metrics. Companion design docs: `docs/customer-journeys.md`, `docs/technical-design.md`.
+
+> **v2.3 revision.** Group swipe matching added to MVP: account holders can run a match session with their partner or friends (rosters of 2 to 10) where everyone swipes the same deck; unanimous right-swipes surface as a match, a ranked-overlap leaderboard is the fallback, and the host locks the pick into the plan. Friends are added by invite link only. Accounts remain optional for the core solo/couple experience and are required for matching. New Section 3.6; amended Sections 1.3, User Account System, Data Governance, Success Metrics.
 
 ---
 
@@ -61,7 +63,9 @@ If the async invite is unanswered after 48 hours, the system prompts Partner A t
 
 #### 1.3 Account Stance
 
-No account is required for the core experience. Preferences and history are stored locally on-device for anonymous users. After three completed itineraries, the system offers optional account creation to enable multi-device sync. This is additive, never a paywall.
+No account is required for the core solo/couple experience. Preferences and history are stored locally on-device for anonymous users. After three completed plans, the system offers optional account creation to enable multi-device sync. This is additive, never a paywall.
+
+Group matching (Section 3.6, v2.3) is the deliberate exception: it requires an account, because friends lists, display names, and cross-device sessions need durable identity. Tapping into matching from an anonymous state routes through account creation, migrating the local history along the way.
 
 ---
 
@@ -143,6 +147,19 @@ A screen that violates a rule needs a written reason.
 #### 3.5 Deferred: Narrative Itineraries
 
 The v2.1 core experience (3 to 5 narrative multi-act itineraries with title, opening line, three acts, and a logistics footer) is deferred, not deleted. The blend, scoring, and pre-authored blurbs that power the deck are the same components multi-act assembly composes on top of; the design essence is preserved in `docs/technical-design.md` Appendix A and returns alongside Phase 3 orchestration.
+
+#### 3.6 Group Match (added v2.3)
+
+Account holders can turn the deck into a group decision:
+
+- **Roster:** the host starts a match session with their partner or friends: 2 to 10 people, picked from a friends list or invited by share link. Friends are added by invite link only (no search, no contact upload).
+- **Lobby:** invitees land in a lobby, completing the quiz first if they haven't (their vetoes are needed). The host starts the session, which locks the roster.
+- **One deck, everyone swipes:** all participants swipe the same deck in the same order. Hard vetoes are unioned across the whole roster, the budget ceiling is the lowest anyone set, and the host frames the area and tonight's story.
+- **Match:** when every participant swipes right on the same venue, it surfaces as a match ("It's a dinner"). Multiple matches can accumulate; swiping can continue.
+- **Leaderboard fallback:** if nothing goes unanimous (likely in bigger groups), the host ends the session and gets a ranked overlap view: venues ordered by right-swipe count.
+- **Lock it in:** the host converts a match or leaderboard pick into the plan for the whole roster, party size prefilled. Large parties default to the call action, since reservation platforms rarely take 8-tops.
+
+There is no group chat in the prototype and none planned: the session link rides the group's existing text thread. The app's job is the decision, not the conversation.
 
 ---
 
@@ -257,7 +274,8 @@ Accessibility testing is a gating criterion before each phase release.
 
 ## User Account System
 
-- **Progressive registration:** Anonymous by default; account creation offered after three completed experiences.
+- **Progressive registration:** Anonymous by default; account creation offered after three completed plans, and required only for group matching (Section 3.6).
+- **Friends (v2.3):** added by invite link only; list, remove, and block. No contact upload, no username search, no discovery.
 - **Session-based learning:** Preferences stored on-device for anonymous users.
 - **Data portability:** Export preference data and history.
 - **Privacy controls:** Granular settings for data usage and location sharing.
@@ -279,7 +297,7 @@ Accessibility testing is a gating criterion before each phase release.
 - **Storage minimization:** Only essential preference data is stored; location data deleted after session.
 - **GDPR-style data handling** even for US users.
 - **Analytics privacy:** Aggregate behavioral data only, no individual tracking.
-- **Anonymous analytics:** Device fingerprinting for basic preference learning without accounts.
+- **Anonymous analytics (amended v2.3):** aggregate behavioral counters only; no device fingerprinting (an opaque profile UUID provides continuity). Account holders' PII is limited to auth email and display name; friends lists and session history are included in export and deletion.
 - **Clear value exchange:** Account creation unlocks multi-device sync, deeper personalization, saved favorites — never required for core functionality.
 
 ---
@@ -384,6 +402,7 @@ Budget and hiring plan are deferred until post-prototype.
 - **Short-term:** 60% monthly active retention after 3 months.
 - **Long-term:** Weekly active usage by core couples.
 - **Expansion:** 25% of active users engage with a non-restaurant pillar in Phase 3+.
+- **Match adoption (v2.3, proposed targets):** 30% of Phase 1 active users run or join at least one match session; 60% of started sessions end in a match or a locked leaderboard pick.
 
 ### Operational Metrics
 
@@ -426,7 +445,7 @@ Budget and hiring plan are deferred until post-prototype.
 
 ---
 
-*Where2Eat v2.2 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars. Monetization deferred until after prototype validation.*
+*Where2Eat v2.3 — Hartford Prototype. Built to solve date night decision fatigue through a curated, swipeable deck of Hartford restaurants and bars, alone, as a couple, or as a group. Monetization deferred until after prototype validation.*
 
 ---
 

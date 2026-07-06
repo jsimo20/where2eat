@@ -6,7 +6,7 @@ Date-night decision app for Hartford, CT. Take a 2-minute quiz with your partner
 
 ## Docs
 
-- [Product requirements (PRD)](W2E_PRD_Hartford_Prototype_v2.2.md)
+- [Product requirements (PRD)](W2E_PRD_Hartford_Prototype.md)
 - [Customer journeys and MVP scenario catalog](docs/customer-journeys.md)
 - [Technical design](docs/technical-design.md)
 
