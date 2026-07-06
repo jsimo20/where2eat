@@ -23,6 +23,7 @@ v7 decisions (folded into PRD v2.7): team = James + Claude Code; light-first pal
 - `W2E_PRD_Hartford_Prototype.md`: the PRD (v2.3; version history in the doc header and git). Requirements source of truth. Stable filename on purpose: version bumps no longer rename the file.
 - `docs/customer-journeys.md`: journey map, scenario catalog (S1..S52, S24 retired), PRD gap resolutions and deviations, scope cuts.
 - `docs/technical-design.md`: architecture decisions (D1..D10), stack, data model, flow diagrams, card/UI design principles, match engine, availability states, API surface, build and sideload distribution plan. Appendix A preserves the deferred multi-act itinerary design.
+- `docs/competitive-landscape.md`: competitive set, Porter's Five Forces, positioning, moat ranking, quarterly watch list (dated July 2026; re-scan before launch decisions).
 
 Scenario IDs (S-numbers) and decision IDs (D-numbers) are the shared vocabulary; reference them in commits and issues. IDs are stable and never reused.
 
