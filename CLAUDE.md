@@ -16,7 +16,7 @@ v5 decision (folded into PRD v2.5): matching is fully async. No lobby; host sets
 
 v6 decision (folded into PRD v2.6): availability is three verified states: Closed (posted schedule, daily refresh), Open walk-in-or-call, Open reservations-available (live partner seat check, fresh within 30 min). No pattern guesses, no stale claims, no manual entry, no feedback signals, no availability-based ranking or swaps.
 
-v7 decisions (folded into PRD v2.7): team = James + Claude Code; light-first palette; photos via Places/Yelp photo APIs with attribution (Google Images ruled out); signup = Google or email+password collecting full name + phone (phone unused, flagged); alpha feedback overlay files GitHub issues (S53). Draft content in docs/content/ (third-way matrix, voice guides, quiz copy, venue template, UNVERIFIED candidate venue list).
+v7 decisions (folded into PRD v2.7): team = James + Claude Code; light-first palette; photos via Places/Yelp photo APIs with attribution (Google Images ruled out); signup = Google or email+password collecting full name + phone (phone unused, flagged); alpha feedback overlay files GitHub issues (S53). Draft content in docs/content/ (third-way matrix, voice guides, quiz copy, venue template, candidate venue list (web-verified 2026-07-07; 13 of 35 draft rows removed or corrected)).
 
 ## Key files
 
